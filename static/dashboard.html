@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Polybot Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--border:#30363d;--border2:#21262d;
+  --text:#e6edf3;--muted:#8b949e;--green:#3fb950;--red:#f85149;
+  --yellow:#e3b341;--blue:#58a6ff;--purple:#bc8cff;
+  --green-bg:#1a3a2a;--red-bg:#3a1a1a;--yellow-bg:#3a2e1a;--blue-bg:#1a2a3a;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;min-height:100vh}
+
+/* Header */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-left{display:flex;align-items:center;gap:8px}
+.logo{font-size:14px;font-weight:700;color:var(--blue);letter-spacing:.5px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.clock{color:var(--muted);font-size:11px}
+
+/* Nav tabs */
+.nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav-btn{flex:none;padding:10px 16px;font-size:12px;color:var(--muted);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.nav-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.nav-btn i{font-size:15px}
+
+/* Pages */
+.page{display:none;padding:12px}
+.page.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+.card-title{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:5px}
+.card-title i{font-size:14px}
+
+/* Metric grid */
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.metric{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;text-align:center}
+.metric-val{font-size:20px;font-weight:700;line-height:1.2}
+.metric-label{font-size:10px;color:var(--muted);margin-top:3px}
+
+/* Stat rows */
+.row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border2)}
+.row:last-child{border-bottom:none}
+.row-label{color:var(--muted);display:flex;align-items:center;gap:5px}
+.row-label i{font-size:13px}
+.row-val{font-weight:600;text-align:right}
+
+/* Badge */
+.badge{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-yellow{background:var(--yellow-bg);color:var(--yellow)}
+.badge-blue{background:var(--blue-bg);color:var(--blue)}
+.badge-gray{background:var(--border2);color:var(--muted)}
+
+/* Table */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:480px}
+th{color:var(--muted);text-align:left;padding:5px 8px;border-bottom:1px solid var(--border);font-weight:400;font-size:11px;white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--border2);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#1c2128}
+
+/* Progress */
+.progress{background:var(--border2);border-radius:4px;height:5px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;border-radius:4px;transition:width .5s}
+
+/* Verdict */
+.verdict{padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;margin-top:8px}
+.verdict-ok{background:var(--green-bg);border:1px solid var(--green);color:var(--green)}
+.verdict-warn{background:var(--yellow-bg);border:1px solid var(--yellow);color:var(--yellow)}
+.verdict-bad{background:var(--red-bg);border:1px solid var(--red);color:var(--red)}
+.verdict-reason{font-size:11px;color:var(--muted);margin-top:5px;font-weight:400}
+
+/* Colors */
+.green{color:var(--green)}.red{color:var(--red)}.yellow{color:var(--yellow)}.blue{color:var(--blue)}.muted{color:var(--muted)}
+
+/* News list */
+.news-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border2)}
+.news-item:last-child{border-bottom:none}
+.news-time{font-size:10px;color:var(--muted);min-width:50px;margin-top:1px}
+
+/* Empty */
+.empty{text-align:center;padding:24px;color:var(--muted);font-size:12px}
+.empty i{font-size:28px;display:block;margin-bottom:6px;opacity:.4}
+
+/* Refresh hint */
+.refresh-hint{text-align:center;color:var(--muted);font-size:10px;padding:6px 0 12px}
+
+/* Position cards (mobile-friendly alternative to table) */
+.pos-card{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:8px}
+.pos-card:last-child{margin-bottom:0}
+.pos-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pos-symbol{font-weight:700;font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="dot"></div>
+    <span class="logo">POLYBOT</span>
+    <span id="status-badge" class="badge badge-gray">Connecting</span>
+  </div>
+  <span class="clock" id="clock"></span>
+</div>
+
+<nav class="nav">
+  <button class="nav-btn active" onclick="showPage('live')" id="tab-live">
+    <i class="ti ti-chart-line"></i> Live
+  </button>
+  <button class="nav-btn" onclick="showPage('report')" id="tab-report">
+    <i class="ti ti-report-analytics"></i> Laporan
+  </button>
+  <button class="nav-btn" onclick="showPage('trades')" id="tab-trades">
+    <i class="ti ti-list-details"></i> Trade Log
+  </button>
+  <button class="nav-btn" onclick="showPage('filter')" id="tab-filter">
+    <i class="ti ti-filter"></i> Filter
+  </button>
+</nav>
+
+<!-- PAGE: LIVE -->
+<div class="page active" id="page-live">
+
+  <!-- Account -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-wallet"></i> Akun</div>
+    <div id="account-content"><div class="empty"><i class="ti ti-wifi-off"></i>Menunggu data EA...</div></div>
+  </div>
+
+  <!-- Today -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-chart-bar"></i> Performa Hari Ini</div>
+    <div id="today-content"><div class="empty"><i class="ti ti-clock"></i>Belum ada trade hari ini</div></div>
+  </div>
+
+  <!-- Positions -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-trending-up"></i> Posisi Terbuka</div>
+    <div id="positions-content"><div class="empty"><i class="ti ti-circle-dashed"></i>Tidak ada posisi</div></div>
+  </div>
+
+  <!-- Cooldown -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-shield"></i> Risk & Cooldown</div>
+    <div id="cooldown-content"><div class="empty"><i class="ti ti-loader"></i>Loading...</div></div>
+  </div>
+
+</div>
+
+<!-- PAGE: REPORT -->
+<div class="page" id="page-report">
+
+  <div class="card">
+    <div class="card-title"><i class="ti ti-calendar-stats"></i> Laporan Mingguan</div>
+    <div id="weekly-content"><div class="empty"><i class="ti ti-clock"></i>Belum ada data</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><i class="ti ti-calendar"></i> Per Hari</div>
+    <div id="daily-content"><div class="empty"><i class="ti ti-clock"></i>Belum ada data</div></div>
+  </div>
+
+</div>
+
+<!-- PAGE: TRADES -->
+<div class="page" id="page-trades">
+  <div class="card">
+    <div class="card-title"><i class="ti ti-list"></i> Trade Terakhir (20)</div>
+    <div id="trades-content"><div class="empty"><i class="ti ti-clock"></i>Belum ada trade</div></div>
+  </div>
+</div>
+
+<!-- PAGE: FILTER -->
+<div class="page" id="page-filter">
+
+  <div class="card">
+    <div class="card-title"><i class="ti ti-news"></i> News & Calendar</div>
+    <div id="news-content"><div class="empty"><i class="ti ti-loader"></i>Loading...</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><i class="ti ti-currency-dollar"></i> DXY Index</div>
+    <div id="dxy-content"><div class="empty"><i class="ti ti-loader"></i>Loading...</div></div>
+  </div>
+
+</div>
+
+<div class="refresh-hint" id="last-refresh">Refresh setiap 3 detik</div>
+
+<script>
+const fmt = (n, d=0) => n==null?'-':Number(n).toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtPnl = (n) => {
+  if(n==null) return '<span class="muted">-</span>';
+  const c = n>=0?'green':'red', s = n>=0?'+':'';
+  return `<span class="${c}">${s}${fmt(n,0)}</span>`;
+};
+const badge = (text, type='gray') => `<span class="badge badge-${type}">${text}</span>`;
+
+function row(label, val, icon='') {
+  return `<div class="row"><span class="row-label">${icon?`<i class="ti ti-${icon}"></i>`:''} ${label}</span><span class="row-val">${val}</span></div>`;
+}
+
+async function api(url) {
+  try {
+    const r = await fetch(url, {signal: AbortSignal.timeout(5000)});
+    if(!r.ok) return null;
+    return r.json();
+  } catch { return null; }
+}
+
+// Clock
+function tick() {
+  const now = new Date(Date.now() + 7*3600000);
+  document.getElementById('clock').textContent =
+    now.toISOString().slice(11,19).replace('T',' ') + ' WIB';
+}
+setInterval(tick, 1000); tick();
+
+// Nav
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ── Live page ─────────────────────────────────────────────────────────────────
+async function loadAccount() {
+  const d = await api('/account');
+  const el = document.getElementById('account-content');
+  if(!d) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-wifi-off"></i>EA belum terhubung</div>';
+    document.getElementById('status-badge').className = 'badge badge-red';
+    document.getElementById('status-badge').textContent = 'Offline';
+    return;
+  }
+  document.getElementById('status-badge').className = 'badge badge-green';
+  document.getElementById('status-badge').textContent = 'Online';
+
+  const bCls = d.balance > 200000 ? 'green' : d.balance > 100000 ? 'yellow' : 'red';
+  const mlCls = d.margin_level > 500 ? 'green' : d.margin_level > 200 ? 'yellow' : 'red';
+  el.innerHTML = `
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-val ${bCls}">${fmt(d.balance)}</div><div class="metric-label">Balance (IDR)</div></div>
+      <div class="metric"><div class="metric-val">${fmt(d.equity)}</div><div class="metric-label">Equity (IDR)</div></div>
+      <div class="metric"><div class="metric-val">${fmt(d.free_margin)}</div><div class="metric-label">Free Margin</div></div>
+      <div class="metric"><div class="metric-val ${mlCls}">${fmt(d.margin_level,1)}%</div><div class="metric-label">Margin Level</div></div>
+    </div>
+    ${row('Floating P&L', fmtPnl(d.profit), 'trending-up')}
+  `;
+}
+
+async function loadToday() {
+  const d = await api('/report/today');
+  const el = document.getElementById('today-content');
+  if(!d || d.message) { el.innerHTML = '<div class="empty"><i class="ti ti-moon"></i>Belum ada trade hari ini</div>'; return; }
+  const wr = d.win_rate_pct || 0;
+  const wrCls = wr>=60?'green':wr>=45?'yellow':'red';
+  el.innerHTML = `
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-val blue">${d.trades}</div><div class="metric-label">Total Trade</div></div>
+      <div class="metric"><div class="metric-val ${wrCls}">${wr}%</div><div class="metric-label">Win Rate</div></div>
+      <div class="metric"><div class="metric-val green">+${fmt(d.max_win)}</div><div class="metric-label">Best Trade</div></div>
+      <div class="metric"><div class="metric-val red">${fmt(d.max_loss)}</div><div class="metric-label">Worst Trade</div></div>
+    </div>
+    ${row('Win / Loss', `<span class="green">${d.wins}W</span> / <span class="red">${d.losses}L</span>`, 'scale')}
+    ${row('Net P&L', fmtPnl(d.net_pnl), 'coin')}
+    <div class="progress"><div class="progress-fill" style="width:${wr}%;background:${wr>=50?'var(--green)':'var(--red)'}"></div></div>
+  `;
+}
+
+async function loadPositions() {
+  const el = document.getElementById('positions-content');
+  const cnt = await api('/positions-count-total');
+  if(!cnt || cnt.count === 0) { el.innerHTML = '<div class="empty"><i class="ti ti-circle-dashed"></i>Tidak ada posisi terbuka</div>'; return; }
+  const h = await api('/health');
+  let html = '';
+  if(h && h.symbols) {
+    for(const sym of h.symbols) {
+      const sc = await api(`/positions-count?symbol=${sym}`);
+      if(sc && sc.count > 0) {
+        const acc = await api('/account');
+        html += `<div class="pos-card">
+          <div class="pos-header">
+            <span class="pos-symbol blue">${sym}</span>
+            ${badge(sc.count + ' posisi', 'blue')}
+          </div>
+          ${row('Floating P&L', fmtPnl(acc?.profit))}
+        </div>`;
+      }
+    }
+  }
+  el.innerHTML = html || '<div class="empty"><i class="ti ti-circle-dashed"></i>-</div>';
+}
+
+async function loadCooldown() {
+  const el = document.getElementById('cooldown-content');
+  const h = await api('/health');
+  const pnl = await api('/today-pnl');
+  const lc = await api('/today-loss-count');
+  if(!h) { el.innerHTML = '<div class="empty">-</div>'; return; }
+  let html = '';
+  for(const sym of (h.symbols||[])) {
+    const cd = await api(`/cooldown?symbol=${sym}`);
+    if(!cd) continue;
+    const b = cd.in_cooldown
+      ? badge('COOLDOWN '+Math.ceil(cd.remaining_seconds/60)+'mnt', 'red')
+      : badge('AKTIF', 'green');
+    html += row(sym, b, 'robot');
+    if(cd.consecutive_losses > 0)
+      html += row('Loss berturut', `<span class="red">${cd.consecutive_losses}x</span>`, 'alert-triangle');
+  }
+  if(pnl) html += row('P&L Hari Ini', fmtPnl(pnl.pnl), 'coin');
+  if(lc) html += row('Total Loss Hari Ini', `<span class="red">${lc.count}x</span>`, 'x');
+  el.innerHTML = html || '<div class="empty">-</div>';
+}
+
+// ── Report page ───────────────────────────────────────────────────────────────
+async function loadWeekly() {
+  const d = await api('/report');
+  const el = document.getElementById('weekly-content');
+  if(!d || d.error) { el.innerHTML = `<div class="empty"><i class="ti ti-clock"></i>${d?.error||'Belum ada data'}</div>`; return; }
+  const s = d.summary;
+  const wr = s.win_rate_pct;
+  const wrCls = wr>=60?'green':wr>=45?'yellow':'red';
+  const pfCls = s.profit_factor>=1.5?'green':s.profit_factor>=1?'yellow':'red';
+  const pnlCls = s.net_pnl>=0?'green':'red';
+  const vClass = d.verdict.includes('✅')?'verdict-ok':d.verdict.includes('⚠️')?'verdict-warn':'verdict-bad';
+  el.innerHTML = `
+    <div class="metric-grid">
+      <div class="metric"><div class="metric-val blue">${s.total_trades}</div><div class="metric-label">Total Trade</div></div>
+      <div class="metric"><div class="metric-val ${wrCls}">${wr}%</div><div class="metric-label">Win Rate</div></div>
+      <div class="metric"><div class="metric-val ${pfCls}">${s.profit_factor}</div><div class="metric-label">Profit Factor</div></div>
+      <div class="metric"><div class="metric-val ${pnlCls}">${s.net_pnl>=0?'+':''}${fmt(s.net_pnl)}</div><div class="metric-label">Net P&L</div></div>
+    </div>
+    ${row('Win / Loss', `<span class="green">${s.wins}W</span> / <span class="red">${s.losses}L</span>`)}
+    ${row('Max Drawdown', `<span class="red">${fmt(s.max_drawdown)}</span>`)}
+    ${row('Max Consec. Loss', `<span class="yellow">${s.max_consecutive_losses}x</span>`)}
+    <div class="verdict ${vClass}">
+      ${d.verdict}
+      <div class="verdict-reason">${d.verdict_reason}</div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px">Periode: ${d.period}</div>
+  `;
+}
+
+async function loadDaily() {
+  const d = await api('/report');
+  const el = document.getElementById('daily-content');
+  if(!d || d.error || !d.daily || !d.daily.length) { el.innerHTML = '<div class="empty"><i class="ti ti-calendar-off"></i>Belum ada data harian</div>'; return; }
+  let html = '';
+  for(const day of [...d.daily].reverse()) {
+    const wr = day.trades > 0 ? Math.round(day.wins/day.trades*100) : 0;
+    const wrCls = wr>=60?'green':wr>=45?'yellow':'red';
+    const pnlCls = day.net_pnl>=0?'green':'red';
+    html += `<div class="pos-card">
+      <div class="pos-header">
+        <span class="blue" style="font-weight:600">${day.date}</span>
+        <span class="${pnlCls}" style="font-weight:700">${day.net_pnl>=0?'+':''}${fmt(day.net_pnl)}</span>
+      </div>
+      ${row('Trade', `${day.trades} | <span class="green">${day.wins}W</span> / <span class="red">${day.losses}L</span>`)}
+      ${row('Win Rate', `<span class="${wrCls}">${wr}%</span>`)}
+      ${row('Best / Worst', `<span class="green">+${fmt(day.max_win)}</span> / <span class="red">${fmt(day.max_loss)}</span>`)}
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+// ── Trades page ───────────────────────────────────────────────────────────────
+async function loadTrades() {
+  const trades = await api('/report/trades');
+  const el = document.getElementById('trades-content');
+  if(!trades || !trades.length) { el.innerHTML = '<div class="empty"><i class="ti ti-list-x"></i>Belum ada trade tercatat</div>'; return; }
+  const recent = [...trades].reverse().slice(0, 20);
+  let html = '';
+  for(const t of recent) {
+    const dirCls = t.direction==='BUY'?'green':'red';
+    const rb = t.result==='WIN' ? badge('WIN','green') : badge('LOSS','red');
+    const entry = Number(t.entry)||0;
+    const sl = Number(t.sl)||0;
+    const tp = Number(t.tp)||0;
+    html += `<div class="pos-card">
+      <div class="pos-header">
+        <div style="display:flex;align-items:center;gap:6px">
+          ${rb}
+          <span class="${dirCls}" style="font-weight:700;font-size:13px">${t.direction}</span>
+        </div>
+        <span class="blue" style="font-weight:700;font-size:14px">${t.symbol}</span>
+      </div>
+      <div style="background:var(--bg);border-radius:6px;padding:8px 10px;margin:6px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;text-align:center">
+        <div><div style="font-size:10px;color:var(--muted)">ENTRY</div><div style="font-weight:600;font-size:13px">${entry.toFixed(2)}</div></div>
+        <div><div style="font-size:10px;color:var(--red)">SL</div><div style="font-weight:600;font-size:13px;color:var(--red)">${sl.toFixed(2)}</div></div>
+        <div><div style="font-size:10px;color:var(--green)">TP</div><div style="font-weight:600;font-size:13px;color:var(--green)">${tp.toFixed(2)}</div></div>
+      </div>
+      ${row('Waktu', `<span class="muted">${t.date} ${t.time}</span>`)}
+      ${row('Lot', t.lot)}
+      ${row('P&L', fmtPnl(t.profit))}
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+// ── Filter page ───────────────────────────────────────────────────────────────
+async function loadFilter() {
+  const d = await api('/macro');
+  const ne = document.getElementById('news-content');
+  const de = document.getElementById('dxy-content');
+  if(!d) {
+    ne.innerHTML = '<div class="empty">Filter tidak aktif</div>';
+    de.innerHTML = '<div class="empty">-</div>';
+    return;
+  }
+  const nb = d.news_ok ? badge('AMAN','green') : badge('BLACKOUT','red');
+  let newsHtml = row('Status News', nb);
+  if(!d.news_ok && d.news_reason)
+    newsHtml += `<div style="font-size:11px;color:var(--red);padding:5px 0">${d.news_reason}</div>`;
+  if(d.upcoming_news && d.upcoming_news.length) {
+    newsHtml += `<div style="margin-top:8px;font-size:10px;color:var(--muted);margin-bottom:4px">UPCOMING HIGH-IMPACT</div>`;
+    for(const n of d.upcoming_news) {
+      newsHtml += `<div class="news-item"><span class="news-time">${n.time_utc} UTC</span><span>${n.currency} — ${n.title}</span></div>`;
+    }
+  } else {
+    newsHtml += `<div style="font-size:11px;color:var(--muted);margin-top:6px">Tidak ada news high-impact dalam 4 jam ke depan</div>`;
+  }
+  ne.innerHTML = newsHtml;
+
+  const dxyCls = d.dxy_value && d.dxy_ema
+    ? (d.dxy_value > d.dxy_ema + 0.15 ? 'red' : d.dxy_value < d.dxy_ema - 0.15 ? 'green' : 'muted')
+    : 'muted';
+  const dxyStatus = d.dxy_value && d.dxy_ema
+    ? (d.dxy_value > d.dxy_ema + 0.15 ? badge('USD KUAT – hindari BUY','red') : d.dxy_value < d.dxy_ema - 0.15 ? badge('USD LEMAH – hindari SELL','green') : badge('NETRAL','gray'))
+    : badge('Menunggu data','gray');
+  de.innerHTML = `
+    <div class="metric-grid" style="margin-bottom:8px">
+      <div class="metric"><div class="metric-val ${dxyCls}">${d.dxy_value ? d.dxy_value.toFixed(3) : '-'}</div><div class="metric-label">DXY Sekarang</div></div>
+      <div class="metric"><div class="metric-val muted">${d.dxy_ema ? d.dxy_ema.toFixed(3) : '-'}</div><div class="metric-label">DXY EMA</div></div>
+    </div>
+    ${row('Status', dxyStatus)}
+    ${row('DXY Filter', d.dxy_filter_enabled ? badge('Aktif','green') : badge('Nonaktif','gray'))}
+  `;
+}
+
+// ── Refresh loops ─────────────────────────────────────────────────────────────
+async function refreshLive() {
+  await Promise.all([loadAccount(), loadToday(), loadPositions(), loadCooldown()]);
+  document.getElementById('last-refresh').textContent =
+    'Terakhir update: ' + new Date(Date.now()+7*3600000).toISOString().slice(11,19) + ' WIB';
+}
+
+async function refreshReport() {
+  await Promise.all([loadWeekly(), loadDaily()]);
+}
+
+// Initial
+refreshLive();
+refreshReport();
+loadTrades();
+loadFilter();
+
+setInterval(refreshLive, 3000);
+setInterval(refreshReport, 30000);
+setInterval(loadTrades, 15000);
+setInterval(loadFilter, 30000);
+</script>
+</body>
+</html>

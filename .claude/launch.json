@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "polybot-dashboard",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["main.py"],
+      "port": 47302,
+      "autoPort": false
+    }
+  ]
+}
