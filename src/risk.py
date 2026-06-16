@@ -89,10 +89,13 @@ def get_cooldown_status(symbol: str) -> dict:
 
 
 def check_daily_loss(account: AccountInfo, today_pnl: float) -> bool:
-    if today_pnl <= -settings.max_daily_loss:
+    # Hard stop: 3% dari balance hari ini
+    hard_stop = account.balance * 0.03
+    if today_pnl <= -hard_stop:
         logger.warning(
-            f"[RISK] Daily loss limit reached: today_pnl={today_pnl:.2f} "
-            f"limit={settings.max_daily_loss}"
+            f"[RISK] Hard stop harian tercapai — rugi {abs(today_pnl):.2f} "
+            f"(3% dari balance {account.balance:.2f} = {hard_stop:.2f}). "
+            f"Bot berhenti hingga besok."
         )
         return False
     return True

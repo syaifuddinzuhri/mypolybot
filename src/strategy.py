@@ -130,13 +130,28 @@ def _find_sr_zones(bars: List[RateBar], point: float) -> List[SRZone]:
 
 # ── SL / TP ──────────────────────────────────────────────────────────────────
 
+def _atr(bars: List[RateBar], period: int = 14) -> float:
+    """Average True Range — ukuran volatilitas rata-rata."""
+    if len(bars) < period + 1:
+        return 0.0
+    trs = []
+    for i in range(1, len(bars)):
+        high, low, prev_close = bars[i].high, bars[i].low, bars[i-1].close
+        trs.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
+    return float(np.mean(trs[-period:]))
+
+
 def _calculate_sl_tp(
     direction: Direction,
     entry: float,
     zones: List[SRZone],
     point: float,
+    bars: Optional[List[RateBar]] = None,
 ) -> tuple[float, float]:
-    min_sl = 150 * point
+    # SL minimum: 1.5× ATR (adaptif volatilitas), fallback 150 points
+    atr = _atr(bars) if bars else 0.0
+    atr_sl = atr * 1.5 if atr > 0 else 0.0
+    min_sl = max(atr_sl, 150 * point)
 
     if direction == Direction.BUY:
         sl = entry - min_sl
@@ -175,7 +190,10 @@ def _calculate_sl_tp(
                 tp = tp_candidate
 
     rr = round(abs(tp - entry) / abs(sl - entry), 2)
-    logger.debug(f"[SL/TP] {direction.value} entry={entry:.3f} sl={round(sl,3)} tp={round(tp,3)} RR=1:{rr}")
+    logger.debug(
+        f"[SL/TP] {direction.value} entry={entry:.3f} sl={round(sl,3)} tp={round(tp,3)} "
+        f"RR=1:{rr} | ATR={round(atr,3)} min_sl={round(min_sl/point)}pts"
+    )
     return round(sl, 5), round(tp, 5)
 
 
@@ -363,8 +381,8 @@ def analyze(
     # ── Fibonacci — gunakan sebagai TP enhancement, bukan blocker entry ──
     _, fib_tp, _ = check_fib_confluence(price, bars, direction, point, digits, symbol)
 
-    # Hitung SL/TP dari SR zone
-    sl, tp = _calculate_sl_tp(direction, price, zones, point)
+    # Hitung SL/TP dari SR zone + ATR
+    sl, tp = _calculate_sl_tp(direction, price, zones, point, bars)
 
     # Override TP dengan Fibonacci extension jika lebih baik (lebih jauh)
     if fib_tp is not None:
