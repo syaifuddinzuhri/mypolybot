@@ -21,6 +21,10 @@ input color    InpResistColor     = clrTomato;               // Warna resistance
 input color    InpFibColor        = clrGold;                 // Warna garis Fibonacci
 input color    InpFibExtColor     = clrMediumPurple;         // Warna garis Fib extension
 input int      InpZoneTransparency = 60;                     // Transparansi fill kotak: 0=invisible 255=solid
+input color    InpEMAFastColor    = clrDodgerBlue;           // Warna EMA fast (20)
+input color    InpEMASlowColor    = clrOrangeRed;            // Warna EMA slow (50)
+input color    InpSwingColor      = clrYellow;               // Warna dot swing H/L
+input color    InpDailyHLColor    = clrSilver;               // Warna daily high/low
 
 CTrade trade;
 string g_symbol;
@@ -249,6 +253,10 @@ void PollDraw()
    DeleteDrawObjects();
    DrawSRZones(resp);
    DrawFibLevels(resp);
+   DrawEMALines();
+   DrawSwingDots();
+   DrawDailyHL();
+   DrawInfoLabel();
    ChartRedraw();
 }
 
@@ -372,6 +380,214 @@ void DrawFibHLine(string name, double price, string label, color clr, int style,
    ObjectSetInteger(0, lblName, OBJPROP_COLOR, clr);
    ObjectSetInteger(0, lblName, OBJPROP_FONTSIZE, 7);
    ObjectSetInteger(0, lblName, OBJPROP_SELECTABLE, false);
+}
+
+//+------------------------------------------------------------------+
+// EMA20 + EMA50 Lines
+//+------------------------------------------------------------------+
+void DrawEMALines()
+{
+   int bars = 200;
+   double closes[];
+   if (CopyClose(g_symbol, PERIOD_CURRENT, 0, bars, closes) <= 0) return;
+   ArraySetAsSeries(closes, true);
+
+   int total = ArraySize(closes);
+
+   // Hitung EMA
+   double ema20[], ema50[];
+   ArrayResize(ema20, total);
+   ArrayResize(ema50, total);
+
+   double k20 = 2.0 / (20 + 1);
+   double k50 = 2.0 / (50 + 1);
+   ema20[total-1] = closes[total-1];
+   ema50[total-1] = closes[total-1];
+   for (int i = total - 2; i >= 0; i--) {
+      ema20[i] = closes[i] * k20 + ema20[i+1] * (1 - k20);
+      ema50[i] = closes[i] * k50 + ema50[i+1] * (1 - k50);
+   }
+
+   // Gambar EMA sebagai titik-titik OBJ_TEXT kecil per candle
+   int step = 1;
+   for (int i = 0; i < MathMin(total, bars); i += step) {
+      datetime t = iTime(g_symbol, PERIOD_CURRENT, i);
+
+      string n20 = "PB_EMA20_" + IntegerToString(i);
+      ObjectCreate(0, n20, OBJ_TEXT, 0, t, ema20[i]);
+      ObjectSetString(0, n20, OBJPROP_TEXT, ".");
+      ObjectSetInteger(0, n20, OBJPROP_COLOR, InpEMAFastColor);
+      ObjectSetInteger(0, n20, OBJPROP_FONTSIZE, 6);
+      ObjectSetInteger(0, n20, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, n20, OBJPROP_BACK, true);
+
+      string n50 = "PB_EMA50_" + IntegerToString(i);
+      ObjectCreate(0, n50, OBJ_TEXT, 0, t, ema50[i]);
+      ObjectSetString(0, n50, OBJPROP_TEXT, ".");
+      ObjectSetInteger(0, n50, OBJPROP_COLOR, InpEMASlowColor);
+      ObjectSetInteger(0, n50, OBJPROP_FONTSIZE, 6);
+      ObjectSetInteger(0, n50, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, n50, OBJPROP_BACK, true);
+   }
+
+   // Label di candle terakhir
+   datetime tNow = iTime(g_symbol, PERIOD_CURRENT, 0);
+   string lbl20 = "PB_EMA20_LBL";
+   ObjectCreate(0, lbl20, OBJ_TEXT, 0, tNow, ema20[0]);
+   ObjectSetString(0, lbl20, OBJPROP_TEXT, " EMA20");
+   ObjectSetInteger(0, lbl20, OBJPROP_COLOR, InpEMAFastColor);
+   ObjectSetInteger(0, lbl20, OBJPROP_FONTSIZE, 7);
+   ObjectSetInteger(0, lbl20, OBJPROP_SELECTABLE, false);
+
+   string lbl50 = "PB_EMA50_LBL";
+   ObjectCreate(0, lbl50, OBJ_TEXT, 0, tNow, ema50[0]);
+   ObjectSetString(0, lbl50, OBJPROP_TEXT, " EMA50");
+   ObjectSetInteger(0, lbl50, OBJPROP_COLOR, InpEMASlowColor);
+   ObjectSetInteger(0, lbl50, OBJPROP_FONTSIZE, 7);
+   ObjectSetInteger(0, lbl50, OBJPROP_SELECTABLE, false);
+}
+
+//+------------------------------------------------------------------+
+// Swing High / Swing Low dots
+//+------------------------------------------------------------------+
+void DrawSwingDots()
+{
+   int bars = 100;
+   double highs[], lows[];
+   if (CopyHigh(g_symbol, PERIOD_CURRENT, 0, bars, highs) <= 0) return;
+   if (CopyLow(g_symbol,  PERIOD_CURRENT, 0, bars, lows)  <= 0) return;
+   ArraySetAsSeries(highs, true);
+   ArraySetAsSeries(lows,  true);
+
+   int count = 0;
+   for (int i = 2; i < bars - 2; i++) {
+      datetime t = iTime(g_symbol, PERIOD_CURRENT, i);
+
+      // Swing High
+      if (highs[i] > highs[i-1] && highs[i] > highs[i-2] &&
+          highs[i] > highs[i+1] && highs[i] > highs[i+2]) {
+         string name = "PB_SWH_" + IntegerToString(count);
+         ObjectCreate(0, name, OBJ_TEXT, 0, t, highs[i]);
+         ObjectSetString(0, name, OBJPROP_TEXT, "▲");
+         ObjectSetInteger(0, name, OBJPROP_COLOR, InpSwingColor);
+         ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 8);
+         ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, name, OBJPROP_BACK, false);
+         count++;
+      }
+
+      // Swing Low
+      if (lows[i] < lows[i-1] && lows[i] < lows[i-2] &&
+          lows[i] < lows[i+1] && lows[i] < lows[i+2]) {
+         string name = "PB_SWL_" + IntegerToString(count);
+         ObjectCreate(0, name, OBJ_TEXT, 0, t, lows[i]);
+         ObjectSetString(0, name, OBJPROP_TEXT, "▼");
+         ObjectSetInteger(0, name, OBJPROP_COLOR, InpSwingColor);
+         ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 8);
+         ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+         ObjectSetInteger(0, name, OBJPROP_BACK, false);
+         count++;
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+// Daily High / Daily Low lines
+//+------------------------------------------------------------------+
+void DrawDailyHL()
+{
+   double dayHighs[], dayLows[];
+   if (CopyHigh(g_symbol, PERIOD_D1, 0, 1, dayHighs) <= 0) return;
+   if (CopyLow(g_symbol,  PERIOD_D1, 0, 1, dayLows)  <= 0) return;
+
+   double dHigh = dayHighs[0];
+   double dLow  = dayLows[0];
+
+   // Daily High
+   ObjectCreate(0, "PB_DAY_HIGH", OBJ_HLINE, 0, 0, dHigh);
+   ObjectSetInteger(0, "PB_DAY_HIGH", OBJPROP_COLOR, InpDailyHLColor);
+   ObjectSetInteger(0, "PB_DAY_HIGH", OBJPROP_STYLE, STYLE_DOT);
+   ObjectSetInteger(0, "PB_DAY_HIGH", OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, "PB_DAY_HIGH", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, "PB_DAY_HIGH", OBJPROP_BACK, true);
+
+   string lhName = "PB_DAY_HIGH_LBL";
+   datetime t = iTime(g_symbol, PERIOD_CURRENT, 0) + PeriodSeconds(PERIOD_CURRENT) * 3;
+   ObjectCreate(0, lhName, OBJ_TEXT, 0, t, dHigh);
+   ObjectSetString(0, lhName, OBJPROP_TEXT, " Day High " + DoubleToString(dHigh, _Digits));
+   ObjectSetInteger(0, lhName, OBJPROP_COLOR, InpDailyHLColor);
+   ObjectSetInteger(0, lhName, OBJPROP_FONTSIZE, 7);
+   ObjectSetInteger(0, lhName, OBJPROP_SELECTABLE, false);
+
+   // Daily Low
+   ObjectCreate(0, "PB_DAY_LOW", OBJ_HLINE, 0, 0, dLow);
+   ObjectSetInteger(0, "PB_DAY_LOW", OBJPROP_COLOR, InpDailyHLColor);
+   ObjectSetInteger(0, "PB_DAY_LOW", OBJPROP_STYLE, STYLE_DOT);
+   ObjectSetInteger(0, "PB_DAY_LOW", OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, "PB_DAY_LOW", OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, "PB_DAY_LOW", OBJPROP_BACK, true);
+
+   string llName = "PB_DAY_LOW_LBL";
+   ObjectCreate(0, llName, OBJ_TEXT, 0, t, dLow);
+   ObjectSetString(0, llName, OBJPROP_TEXT, " Day Low " + DoubleToString(dLow, _Digits));
+   ObjectSetInteger(0, llName, OBJPROP_COLOR, InpDailyHLColor);
+   ObjectSetInteger(0, llName, OBJPROP_FONTSIZE, 7);
+   ObjectSetInteger(0, llName, OBJPROP_SELECTABLE, false);
+}
+
+//+------------------------------------------------------------------+
+// Info Label — Trend + ATR + EMA di pojok kiri atas
+//+------------------------------------------------------------------+
+void DrawInfoLabel()
+{
+   // Hitung EMA20, EMA50, ATR dari candle terkini
+   double closes[], highs[], lows[];
+   int bars = 60;
+   if (CopyClose(g_symbol, PERIOD_CURRENT, 0, bars, closes) <= 0) return;
+   if (CopyHigh(g_symbol,  PERIOD_CURRENT, 0, bars, highs)  <= 0) return;
+   if (CopyLow(g_symbol,   PERIOD_CURRENT, 0, bars, lows)   <= 0) return;
+   ArraySetAsSeries(closes, true);
+   ArraySetAsSeries(highs,  true);
+   ArraySetAsSeries(lows,   true);
+
+   int total = ArraySize(closes);
+   double ema20 = closes[total-1], ema50 = closes[total-1];
+   double k20 = 2.0/(20+1), k50 = 2.0/(50+1);
+   for (int i = total - 2; i >= 0; i--) {
+      ema20 = closes[i] * k20 + ema20 * (1 - k20);
+      ema50 = closes[i] * k50 + ema50 * (1 - k50);
+   }
+
+   // ATR 14
+   double atr = 0;
+   int atrPeriod = 14;
+   for (int i = 1; i <= atrPeriod && i < total; i++) {
+      double tr = MathMax(highs[i] - lows[i],
+                  MathMax(MathAbs(highs[i] - closes[i+1 < total ? i+1 : i]),
+                          MathAbs(lows[i]  - closes[i+1 < total ? i+1 : i])));
+      atr += tr;
+   }
+   atr /= atrPeriod;
+
+   string trend = (ema20 > ema50) ? "BUY ↑" : (ema20 < ema50) ? "SELL ↓" : "NEUTRAL";
+   color trendColor = (ema20 > ema50) ? clrLime : (ema20 < ema50) ? clrTomato : clrGray;
+
+   string infoText = StringFormat(
+      "Trend : %s\nEMA20 : %.3f\nEMA50 : %.3f\nATR   : %.3f",
+      trend, ema20, ema50, atr
+   );
+
+   string name = "PB_INFO_LABEL";
+   if (ObjectFind(0, name) < 0)
+      ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
+   ObjectSetString(0, name, OBJPROP_TEXT, infoText);
+   ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, 10);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, 20);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, trendColor);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, 9);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, name, OBJPROP_BACK, false);
 }
 
 double JsonGetDoubleKey(string json, string section, string key)

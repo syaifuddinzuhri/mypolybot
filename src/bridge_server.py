@@ -252,6 +252,79 @@ async def all_trades():
     return json.loads(f.read_text())
 
 
+@app.get("/ea/analysis")
+async def ea_analysis(symbol: str = None):
+    """Kondisi pasar realtime: Trend, EMA, ATR, Spread, Daily H/L."""
+    import numpy as np
+
+    sym = symbol or (list(_cache["symbols"].keys())[0] if _cache["symbols"] else None)
+    if not sym:
+        raise HTTPException(404, "No symbol data yet")
+
+    bars = _cache.get("bars", {}).get(sym, [])
+    meta = _cache["symbols"].get(sym)
+    tick = _cache["ticks"].get(sym)
+
+    if not bars or not meta:
+        raise HTTPException(404, "No bar data yet")
+
+    closes = np.array([b.close for b in bars])
+    highs  = np.array([b.high  for b in bars])
+    lows   = np.array([b.low   for b in bars])
+
+    def ema(arr, p):
+        k, e = 2/(p+1), np.zeros_like(arr)
+        e[0] = arr[0]
+        for i in range(1, len(arr)): e[i] = arr[i]*k + e[i-1]*(1-k)
+        return e
+
+    ema20 = ema(closes, 20)[-1]
+    ema50 = ema(closes, 50)[-1]
+
+    # ATR 14
+    atr_vals = []
+    for i in range(1, min(15, len(bars))):
+        atr_vals.append(max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i-1]),
+            abs(lows[i]  - closes[i-1])
+        ))
+    atr = float(np.mean(atr_vals)) if atr_vals else 0.0
+
+    # Trend
+    if ema20 > ema50:
+        trend = "BUY"
+    elif ema20 < ema50:
+        trend = "SELL"
+    else:
+        trend = "NEUTRAL"
+
+    # Daily High/Low (dari seluruh bars hari ini)
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date()
+    today_bars = [b for b in bars if hasattr(b, 'time') and b.time and
+                  datetime.fromtimestamp(b.time, tz=timezone.utc).date() == today]
+    day_high = round(max(b.high for b in today_bars), meta.digits) if today_bars else None
+    day_low  = round(min(b.low  for b in today_bars), meta.digits) if today_bars else None
+
+    spread = int((tick.ask - tick.bid) / meta.point) if tick else 0
+    price  = round(tick.bid, meta.digits) if tick else 0
+
+    return {
+        "symbol":   sym,
+        "trend":    trend,
+        "ema20":    round(ema20, meta.digits),
+        "ema50":    round(ema50, meta.digits),
+        "atr":      round(atr, meta.digits),
+        "atr_pts":  int(atr / meta.point),
+        "spread":   spread,
+        "price":    price,
+        "day_high": day_high,
+        "day_low":  day_low,
+        "bars_used": len(bars),
+    }
+
+
 @app.get("/ea/draw")
 async def ea_draw(symbol: str):
     """EA poll endpoint ini untuk mendapatkan data visual (SR zones + Fib levels)."""
