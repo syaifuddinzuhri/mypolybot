@@ -209,17 +209,96 @@ def analyze(
 
     min_strength = 2
 
-    # Cek apakah zona masih holding atau sudah recovery setelah false break:
-    # minimal 4 dari 5 candle terakhir close di dalam/atas zona
+    def zone_valid_support(z: SRZone) -> tuple[bool, str]:
+        """
+        Kasus validitas zona SUPPORT (untuk BUY):
+
+        INVALID:
+          - Case 1: 2+ candle body close di bawah zone.low  → zona benar-benar ditembus
+          - Case 2: candle terakhir body close di bawah zone.low → baru saja ditembus
+          - Case 3: kurang dari 3/5 candle close di atas zone.low → tidak ada dukungan
+
+        VALID:
+          - Case 4: 5/5 atau 4/5 candle close di atas zone.low → holding bersih
+          - Case 5: ada wick yang tembus bawah tapi body tidak (false break) + 4/5 holding → recovery valid
+          - Case 6: 1 body tembus tapi candle terakhir sudah balik ke atas + 4/5 holding → recovery lemah
+        """
+        recent5 = bars[-5:]
+        last = bars[-1]
+
+        closes_above = sum(1 for b in recent5 if b.close >= z.low)
+        bodies_below = sum(1 for b in recent5 if b.close < z.low and b.open < z.low)
+        wicks_below  = sum(1 for b in recent5 if b.low < z.low)
+        last_body_below = last.close < z.low and last.open < z.low
+
+        # Case 1: multiple body break → benar-benar ditembus
+        if bodies_below >= 2:
+            return False, f"broken ({bodies_below} body close di bawah zona)"
+
+        # Case 2: candle terakhir body di bawah zona
+        if last_body_below:
+            return False, "broken (candle terakhir close di bawah zona)"
+
+        # Case 3: tidak cukup candle holding
+        if closes_above < 3:
+            return False, f"tidak cukup holding ({closes_above}/5 candle di atas zona)"
+
+        # Case 5: false break (hanya wick, body tidak tembus) → valid recovery
+        if wicks_below > 0 and bodies_below == 0 and closes_above >= 4:
+            return True, f"recovery — false break ({wicks_below}x wick saja, body holding)"
+
+        # Case 6: 1 body tembus tapi sudah balik + 4 dari 5 holding
+        if bodies_below == 1 and closes_above >= 4 and last.close >= z.low:
+            return True, "recovery — 1 body break lalu balik ke atas zona"
+
+        # Case 4: holding bersih
+        if closes_above >= 4:
+            return True, "holding bersih"
+
+        # holding lemah (3/5) — valid tapi catat
+        return True, f"holding lemah ({closes_above}/5)"
+
+    def zone_valid_resistance(z: SRZone) -> tuple[bool, str]:
+        """
+        Kasus validitas zona RESISTANCE (untuk SELL) — mirror dari support.
+        """
+        recent5 = bars[-5:]
+        last = bars[-1]
+
+        closes_below = sum(1 for b in recent5 if b.close <= z.high)
+        bodies_above = sum(1 for b in recent5 if b.close > z.high and b.open > z.high)
+        wicks_above  = sum(1 for b in recent5 if b.high > z.high)
+        last_body_above = last.close > z.high and last.open > z.high
+
+        if bodies_above >= 2:
+            return False, f"broken ({bodies_above} body close di atas zona)"
+        if last_body_above:
+            return False, "broken (candle terakhir close di atas zona)"
+        if closes_below < 3:
+            return False, f"tidak cukup holding ({closes_below}/5 candle di bawah zona)"
+        if wicks_above > 0 and bodies_above == 0 and closes_below >= 4:
+            return True, f"recovery — false break ({wicks_above}x wick saja, body holding)"
+        if bodies_above == 1 and closes_below >= 4 and last.close <= z.high:
+            return True, "recovery — 1 body break lalu balik ke bawah zona"
+        if closes_below >= 4:
+            return True, "holding bersih"
+        return True, f"holding lemah ({closes_below}/5)"
+
     def zone_still_holding_support(z: SRZone) -> bool:
-        recent = bars[-5:]
-        holding = sum(1 for b in recent if b.close >= z.low)
-        return holding >= 4
+        valid, reason = zone_valid_support(z)
+        if not valid:
+            logger.debug(f"[ZONE][{symbol}] Support [{z.low:.{digits}f},{z.high:.{digits}f}] INVALID — {reason}")
+        else:
+            logger.debug(f"[ZONE][{symbol}] Support [{z.low:.{digits}f},{z.high:.{digits}f}] valid — {reason}")
+        return valid
 
     def zone_still_holding_resistance(z: SRZone) -> bool:
-        recent = bars[-5:]
-        holding = sum(1 for b in recent if b.close <= z.high)
-        return holding >= 4
+        valid, reason = zone_valid_resistance(z)
+        if not valid:
+            logger.debug(f"[ZONE][{symbol}] Resistance [{z.low:.{digits}f},{z.high:.{digits}f}] INVALID — {reason}")
+        else:
+            logger.debug(f"[ZONE][{symbol}] Resistance [{z.low:.{digits}f},{z.high:.{digits}f}] valid — {reason}")
+        return valid
 
     if direction == Direction.BUY:
         target_zones = [
@@ -250,22 +329,32 @@ def analyze(
             if all_support:
                 nearest = all_support[0]
                 dist = int((price - nearest.high) / point)
-                broken = not zone_still_holding_support(nearest)
-                status = "BROKEN/ditembus" if broken else f"{dist} pts di atas zona"
+                valid, reason = zone_valid_support(nearest)
+                if not valid:
+                    status = f"INVALID — {reason}"
+                elif dist > touch_buffer / point:
+                    status = f"harga {dist} pts di atas zona (belum menyentuh)"
+                else:
+                    status = f"touched tapi strength={nearest.strength} < min={min_strength}"
                 logger.info(f"[NO TRADE][{symbol}] Support [{nearest.low:.{digits}f},{nearest.high:.{digits}f}] — {status}")
             else:
-                logger.info(f"[NO TRADE][{symbol}] Tidak ada support zone valid (BUY)")
+                logger.info(f"[NO TRADE][{symbol}] Tidak ada support zone terdeteksi (BUY)")
         else:
             all_resist = sorted([z for z in zones if z.zone_type == "resistance"],
                                  key=lambda z: z.low)
             if all_resist:
                 nearest = all_resist[0]
                 dist = int((nearest.low - price) / point)
-                broken = not zone_still_holding_resistance(nearest)
-                status = "BROKEN/ditembus" if broken else f"{dist} pts di bawah zona"
+                valid, reason = zone_valid_resistance(nearest)
+                if not valid:
+                    status = f"INVALID — {reason}"
+                elif dist > touch_buffer / point:
+                    status = f"harga {dist} pts di bawah zona (belum menyentuh)"
+                else:
+                    status = f"touched tapi strength={nearest.strength} < min={min_strength}"
                 logger.info(f"[NO TRADE][{symbol}] Resistance [{nearest.low:.{digits}f},{nearest.high:.{digits}f}] — {status}")
             else:
-                logger.info(f"[NO TRADE][{symbol}] Tidak ada resistance zone valid (SELL)")
+                logger.info(f"[NO TRADE][{symbol}] Tidak ada resistance zone terdeteksi (SELL)")
         return None
 
     hit_zone = target_zones[0]
