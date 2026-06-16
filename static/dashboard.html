@@ -93,6 +93,9 @@ tr:hover td{background:#1c2128}
 
 /* Refresh hint */
 .refresh-hint{text-align:center;color:var(--muted);font-size:10px;padding:6px 0 12px}
+.tf-btn{background:var(--border2);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer}
+.tf-btn.tf-active{background:var(--blue-bg);color:var(--blue);border-color:var(--blue)}
+.log-info{color:#58a6ff}.log-success{color:#3fb950}.log-warning{color:#e3b341}.log-error{color:#f85149}.log-debug{color:#6e7681}.log-time{color:#484f58}.log-tag{color:#bc8cff}
 
 /* Position cards (mobile-friendly alternative to table) */
 .pos-card{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:8px}
@@ -124,6 +127,9 @@ tr:hover td{background:#1c2128}
   </button>
   <button class="nav-btn" onclick="showPage('filter')" id="tab-filter">
     <i class="ti ti-filter"></i> Filter
+  </button>
+  <button class="nav-btn" onclick="showPage('terminal')" id="tab-terminal">
+    <i class="ti ti-terminal-2"></i> Log
   </button>
 </nav>
 
@@ -192,6 +198,24 @@ tr:hover td{background:#1c2128}
     <div id="dxy-content"><div class="empty"><i class="ti ti-loader"></i>Loading...</div></div>
   </div>
 
+</div>
+
+<!-- PAGE: TERMINAL -->
+<div class="page" id="page-terminal">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px">
+    <div style="display:flex;gap:6px">
+      <button onclick="termFilterLevel('ALL')" id="tf-ALL" class="tf-btn tf-active">ALL</button>
+      <button onclick="termFilterLevel('INFO')" id="tf-INFO" class="tf-btn">INFO</button>
+      <button onclick="termFilterLevel('WARNING')" id="tf-WARNING" class="tf-btn">WARN</button>
+      <button onclick="termFilterLevel('SUCCESS')" id="tf-SUCCESS" class="tf-btn">OK</button>
+      <button onclick="termFilterLevel('ERROR')" id="tf-ERROR" class="tf-btn">ERR</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button onclick="termTogglePause()" id="btn-pause" class="tf-btn"><i class="ti ti-player-pause"></i></button>
+      <button onclick="termClear()" class="tf-btn"><i class="ti ti-trash"></i></button>
+    </div>
+  </div>
+  <div id="terminal" style="background:#0a0e13;border:1px solid var(--border);border-radius:8px;height:calc(100vh - 180px);overflow-y:auto;padding:10px;font-family:'Courier New',monospace;font-size:11px;line-height:1.6"></div>
 </div>
 
 <div class="refresh-hint" id="last-refresh">Refresh setiap 3 detik</div>
@@ -470,6 +494,93 @@ setInterval(refreshLive, 3000);
 setInterval(refreshReport, 30000);
 setInterval(loadTrades, 15000);
 setInterval(loadFilter, 30000);
+
+// ── Terminal / Log ────────────────────────────────────────────────────────────
+let termPaused = false;
+let termFilter = 'ALL';
+let termEs = null;
+let termAutoScroll = true;
+const MAX_LINES = 500;
+
+function colorLine(raw) {
+  const esc = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // time
+  let html = esc.replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/,
+    '<span class="log-time">$1</span>');
+  // level
+  html = html.replace(/\|\s*(INFO)\s*\|/, '| <span class="log-info">INFO   </span> |');
+  html = html.replace(/\|\s*(SUCCESS)\s*\|/, '| <span class="log-success">SUCCESS</span> |');
+  html = html.replace(/\|\s*(WARNING)\s*\|/, '| <span class="log-warning">WARNING</span> |');
+  html = html.replace(/\|\s*(ERROR)\s*\|/, '| <span class="log-error">ERROR  </span> |');
+  html = html.replace(/\|\s*(DEBUG)\s*\|/, '| <span class="log-debug">DEBUG  </span> |');
+  // tags like [SIGNAL] [NO TRADE] etc
+  html = html.replace(/(\[[A-Z][A-Z _/]+\])/g, '<span class="log-tag">$1</span>');
+  return html;
+}
+
+function termMatchFilter(raw) {
+  if (termFilter === 'ALL') return true;
+  return raw.includes('| ' + termFilter);
+}
+
+function termAppend(raw) {
+  if (!termMatchFilter(raw)) return;
+  const el = document.getElementById('terminal');
+  const div = document.createElement('div');
+  div.innerHTML = colorLine(raw);
+  el.appendChild(div);
+  // trim oldest lines
+  while (el.children.length > MAX_LINES) el.removeChild(el.firstChild);
+  if (termAutoScroll) el.scrollTop = el.scrollHeight;
+}
+
+function termClear() {
+  document.getElementById('terminal').innerHTML = '';
+}
+
+function termTogglePause() {
+  termPaused = !termPaused;
+  const btn = document.getElementById('btn-pause');
+  btn.innerHTML = termPaused
+    ? '<i class="ti ti-player-play"></i>'
+    : '<i class="ti ti-player-pause"></i>';
+  btn.classList.toggle('tf-active', termPaused);
+}
+
+function termFilterLevel(level) {
+  termFilter = level;
+  document.querySelectorAll('.tf-btn[id^="tf-"]').forEach(b => b.classList.remove('tf-active'));
+  document.getElementById('tf-' + level).classList.add('tf-active');
+  termClear();
+  // reload recent lines with new filter
+  api('/logs/recent?n=200').then(d => {
+    if (d && d.lines) d.lines.forEach(termAppend);
+  });
+}
+
+function termConnect() {
+  if (termEs) termEs.close();
+  termEs = new EventSource('/logs/stream');
+  termEs.onmessage = (e) => {
+    if (termPaused) return;
+    try { termAppend(JSON.parse(e.data)); } catch {}
+  };
+  termEs.onerror = () => {
+    setTimeout(termConnect, 3000);
+  };
+}
+
+// Auto-scroll detection
+document.getElementById('terminal').addEventListener('scroll', function() {
+  termAutoScroll = this.scrollTop + this.clientHeight >= this.scrollHeight - 20;
+});
+
+// Start terminal when tab clicked
+const origShowPage = showPage;
+window.showPage = function(name) {
+  origShowPage(name);
+  if (name === 'terminal' && !termEs) termConnect();
+};
 </script>
 </body>
 </html>

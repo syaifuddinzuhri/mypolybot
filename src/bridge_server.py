@@ -174,6 +174,53 @@ async def health():
     return {"status": "ok", "symbols": list(_cache["symbols"].keys())}
 
 
+@app.get("/logs/recent")
+async def logs_recent(n: int = 200):
+    """Ambil N baris log terakhir."""
+    import asyncio
+    from pathlib import Path
+    log_file = Path("data/polybot.log")
+    if not log_file.exists():
+        return {"lines": []}
+    lines = log_file.read_text(errors="replace").splitlines()
+    return {"lines": lines[-n:]}
+
+
+@app.get("/logs/stream")
+async def logs_stream():
+    """SSE endpoint — stream log realtime ke browser."""
+    import asyncio
+    from pathlib import Path
+    from fastapi.responses import StreamingResponse
+
+    log_file = Path("data/polybot.log")
+
+    async def generate():
+        # Kirim 50 baris terakhir dulu sebagai history
+        if log_file.exists():
+            lines = log_file.read_text(errors="replace").splitlines()
+            for line in lines[-50:]:
+                import json
+                yield f"data: {json.dumps(line)}\n\n"
+
+        # Lalu tail file secara realtime
+        with open(log_file, "r", errors="replace") as f:
+            f.seek(0, 2)  # jump ke akhir file
+            while True:
+                line = f.readline()
+                if line:
+                    import json
+                    yield f"data: {json.dumps(line.rstrip())}\n\n"
+                else:
+                    await asyncio.sleep(0.2)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.get("/macro")
 async def macro_status():
     from .news_filter import get_macro_status
