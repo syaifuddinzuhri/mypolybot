@@ -281,14 +281,15 @@ async def ea_analysis(symbol: str = None):
     ema20 = ema(closes, 20)[-1]
     ema50 = ema(closes, 50)[-1]
 
-    # ATR 14
+    # ATR 14 — oldest to newest (bars dari EA urutan index 0=oldest)
     atr_vals = []
     for i in range(1, min(15, len(bars))):
-        atr_vals.append(max(
-            highs[i] - lows[i],
-            abs(highs[i] - closes[i-1]),
-            abs(lows[i]  - closes[i-1])
-        ))
+        tr = max(
+            highs[-i] - lows[-i],
+            abs(highs[-i] - closes[-i-1]),
+            abs(lows[-i]  - closes[-i-1])
+        )
+        atr_vals.append(tr)
     atr = float(np.mean(atr_vals)) if atr_vals else 0.0
 
     # Trend
