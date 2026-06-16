@@ -1,19 +1,14 @@
 [Unit]
 Description=Polybot Trading Bot Bridge Server
 After=network.target
-Wants=network-online.target
 
 [Service]
 Type=simple
-User=polybot
-WorkingDirectory=/opt/polybot
-ExecStart=/opt/polybot/.venv/bin/python main.py
+User=root
+WorkingDirectory=/var/www/mypolybot
+ExecStart=/var/www/mypolybot/.venv/bin/python main.py
 Restart=always
 RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-# Environment
 Environment=TZ=Asia/Jakarta
 
 [Install]
