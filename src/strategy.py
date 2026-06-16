@@ -209,16 +209,17 @@ def analyze(
 
     min_strength = 2
 
-    # Cek apakah zona masih holding: minimal 2 dari 3 candle terakhir close di dalam/atas zona
+    # Cek apakah zona masih holding atau sudah recovery setelah false break:
+    # minimal 4 dari 5 candle terakhir close di dalam/atas zona
     def zone_still_holding_support(z: SRZone) -> bool:
-        recent = bars[-3:]
+        recent = bars[-5:]
         holding = sum(1 for b in recent if b.close >= z.low)
-        return holding >= 2
+        return holding >= 4
 
     def zone_still_holding_resistance(z: SRZone) -> bool:
-        recent = bars[-3:]
+        recent = bars[-5:]
         holding = sum(1 for b in recent if b.close <= z.high)
-        return holding >= 2
+        return holding >= 4
 
     if direction == Direction.BUY:
         target_zones = [
