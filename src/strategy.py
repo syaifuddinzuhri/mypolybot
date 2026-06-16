@@ -44,8 +44,28 @@ def detect_trend(bars: List[RateBar], point: float) -> Optional[Direction]:
     else:
         return None
 
-    # Cukup EMA sudah cukup sebagai filter trend
-    # Majority vote dihapus — pullback berlawanan arah adalah momen entry yang bagus
+    # Filter 1: harga harus di sisi yang benar dari EMA fast
+    # BUY hanya jika harga belum terlalu jauh di bawah EMA (max 2x ATR)
+    last_close = bars[-1].close
+    if trend == Direction.BUY and last_close < fast_last - (200 * point):
+        logger.debug(f"[TREND] BUY skip — harga {last_close:.3f} terlalu jauh di bawah EMA {fast_last:.3f}")
+        return None
+    if trend == Direction.SELL and last_close > fast_last + (200 * point):
+        logger.debug(f"[TREND] SELL skip — harga {last_close:.3f} terlalu jauh di atas EMA {fast_last:.3f}")
+        return None
+
+    # Filter 2: momentum candle — jika 4/5 candle terakhir berlawanan arah, skip
+    recent = bars[-5:]
+    if trend == Direction.BUY:
+        bearish = sum(1 for b in recent if b.close < b.open)
+        if bearish >= 4:
+            logger.debug(f"[TREND] BUY skip — momentum bearish kuat ({bearish}/5 candle turun)")
+            return None
+    else:
+        bullish = sum(1 for b in recent if b.close > b.open)
+        if bullish >= 4:
+            logger.debug(f"[TREND] SELL skip — momentum bullish kuat ({bullish}/5 candle naik)")
+            return None
 
     # Candle terakhir tidak boleh doji
     last = bars[-1]
