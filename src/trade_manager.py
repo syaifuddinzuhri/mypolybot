@@ -15,17 +15,84 @@ from .types import Position, EACommand, TickData
 from .config import settings
 
 
+# Runtime session override — bisa diubah dari dashboard tanpa restart
+_session_runtime: dict = {
+    "enabled": None,      # None = ikut .env
+    "open_wib": None,
+    "close_wib": None,
+    "active_sessions": [], # ["asia","pre_london","london","new_york"]
+}
+
+SESSION_PRESETS = {
+    "asia":       {"label": "Asia",        "open_wib": 0,  "close_wib": 8,  "spread_warn": True},
+    "pre_london": {"label": "Pre-London",  "open_wib": 8,  "close_wib": 14, "spread_warn": False},
+    "london":     {"label": "London",      "open_wib": 14, "close_wib": 20, "spread_warn": False},
+    "new_york":   {"label": "New York",    "open_wib": 19, "close_wib": 24, "spread_warn": False},
+}
+
+def get_session_config() -> dict:
+    wib_hour = (datetime.now(timezone.utc).hour + 7) % 24
+    active = []
+    for key, p in SESSION_PRESETS.items():
+        if p["open_wib"] <= wib_hour < p["close_wib"]:
+            active.append(key)
+    enabled = _session_runtime["enabled"]
+    if enabled is None:
+        enabled = settings.session_filter_enabled
+    return {
+        "enabled": enabled,
+        "open_wib": _session_runtime["open_wib"] or settings.session_open_hour,
+        "close_wib": _session_runtime["close_wib"] or settings.session_close_hour,
+        "active_sessions": _session_runtime["active_sessions"],
+        "current_wib_hour": wib_hour,
+        "current_session_now": active,
+        "presets": SESSION_PRESETS,
+    }
+
+def set_session_config(enabled: bool = None, sessions: list = None,
+                       open_wib: int = None, close_wib: int = None):
+    if enabled is not None:
+        _session_runtime["enabled"] = enabled
+    if sessions is not None:
+        _session_runtime["active_sessions"] = sessions
+        if sessions:
+            opens  = [SESSION_PRESETS[s]["open_wib"]  for s in sessions if s in SESSION_PRESETS]
+            closes = [SESSION_PRESETS[s]["close_wib"] for s in sessions if s in SESSION_PRESETS]
+            if opens and closes:
+                _session_runtime["open_wib"]  = min(opens)
+                _session_runtime["close_wib"] = max(closes)
+    if open_wib is not None:
+        _session_runtime["open_wib"] = open_wib
+    if close_wib is not None:
+        _session_runtime["close_wib"] = close_wib
+
 def is_trading_session() -> bool:
-    """Return True jika sekarang dalam sesi London/NY (UTC)."""
-    if not settings.session_filter_enabled:
+    """Return True jika sekarang dalam sesi yang dipilih (WIB)."""
+    enabled = _session_runtime["enabled"]
+    if enabled is None:
+        enabled = settings.session_filter_enabled
+    if not enabled:
         return True
-    hour = datetime.now(timezone.utc).hour
-    in_session = settings.session_open_hour <= hour < settings.session_close_hour
-    if not in_session:
-        logger.debug(
-            f"[SESSION] Di luar sesi trading (UTC hour={hour}, "
-            f"sesi={settings.session_open_hour}:00-{settings.session_close_hour}:00)"
+
+    wib_hour = (datetime.now(timezone.utc).hour + 7) % 24
+    open_wib  = _session_runtime["open_wib"]  or settings.session_open_hour
+    close_wib = _session_runtime["close_wib"] or settings.session_close_hour
+
+    # Jika ada sesi aktif spesifik, cek salah satunya
+    active = _session_runtime["active_sessions"]
+    if active:
+        in_any = any(
+            SESSION_PRESETS[s]["open_wib"] <= wib_hour < SESSION_PRESETS[s]["close_wib"]
+            for s in active if s in SESSION_PRESETS
         )
+        if not in_any:
+            names = ", ".join(SESSION_PRESETS[s]["label"] for s in active if s in SESSION_PRESETS)
+            logger.debug(f"[SESSION] Di luar sesi aktif ({names}) — WIB={wib_hour:02d}:xx")
+        return in_any
+
+    in_session = open_wib <= wib_hour < close_wib
+    if not in_session:
+        logger.debug(f"[SESSION] Di luar sesi {open_wib:02d}:00-{close_wib:02d}:00 WIB (sekarang {wib_hour:02d}:xx WIB)")
     return in_session
 
 

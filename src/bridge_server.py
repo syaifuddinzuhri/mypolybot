@@ -221,6 +221,31 @@ async def logs_stream():
     )
 
 
+@app.get("/session/config")
+async def session_config_get():
+    from .trade_manager import get_session_config
+    return get_session_config()
+
+class SessionConfigRequest(BaseModel):
+    enabled: Optional[bool] = None
+    sessions: Optional[list] = None
+    open_wib: Optional[int] = None
+    close_wib: Optional[int] = None
+
+@app.post("/session/config")
+async def session_config_set(req: SessionConfigRequest):
+    from .trade_manager import set_session_config
+    set_session_config(
+        enabled=req.enabled,
+        sessions=req.sessions,
+        open_wib=req.open_wib,
+        close_wib=req.close_wib,
+    )
+    logger.info(f"[SESSION] Config diubah via dashboard: {req.model_dump(exclude_none=True)}")
+    from .trade_manager import get_session_config
+    return get_session_config()
+
+
 @app.get("/macro")
 async def macro_status():
     from .news_filter import get_macro_status

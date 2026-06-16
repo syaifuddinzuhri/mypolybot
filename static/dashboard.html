@@ -97,6 +97,16 @@ tr:hover td{background:#1c2128}
 .tf-btn.tf-active{background:var(--blue-bg);color:var(--blue);border-color:var(--blue)}
 .log-info{color:#58a6ff}.log-success{color:#3fb950}.log-warning{color:#e3b341}.log-error{color:#f85149}.log-debug{color:#6e7681}.log-time{color:#484f58}.log-tag{color:#bc8cff}
 
+/* Session buttons */
+.sess-btn{background:var(--bg);border:2px solid var(--border);color:var(--muted);border-radius:10px;padding:12px 8px;font-size:13px;cursor:pointer;text-align:center;transition:all .2s;width:100%;line-height:1.6}
+.sess-btn.active{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
+.sess-btn.warn{background:var(--yellow-bg);border-color:var(--yellow);color:var(--yellow)}
+.sess-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.sess-tbl th{color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase}
+.sess-tbl td{padding:8px;border-bottom:1px solid var(--border2);vertical-align:middle}
+.sess-tbl tr:last-child td{border-bottom:none}
+.sess-now{font-size:11px;animation:pulse 2s infinite}
+
 /* Position cards (mobile-friendly alternative to table) */
 .pos-card{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:8px}
 .pos-card:last-child{margin-bottom:0}
@@ -124,6 +134,9 @@ tr:hover td{background:#1c2128}
   </button>
   <button class="nav-btn" onclick="showPage('trades')" id="tab-trades">
     <i class="ti ti-list-details"></i> Trade Log
+  </button>
+  <button class="nav-btn" onclick="showPage('session')" id="tab-session">
+    <i class="ti ti-clock"></i> Sesi
   </button>
   <button class="nav-btn" onclick="showPage('filter')" id="tab-filter">
     <i class="ti ti-filter"></i> Filter
@@ -189,6 +202,53 @@ tr:hover td{background:#1c2128}
     <div class="card-title"><i class="ti ti-list"></i> Trade Terakhir (20)</div>
     <div id="trades-content"><div class="empty"><i class="ti ti-clock"></i>Belum ada trade</div></div>
   </div>
+</div>
+
+<!-- PAGE: SESI -->
+<div class="page" id="page-session">
+
+  <!-- Toggle master -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-toggle-right"></i> Session Filter</div>
+    <div id="session-master-content">
+      <div class="row">
+        <span class="row-label"><i class="ti ti-clock"></i> Filter Sesi Aktif</span>
+        <span class="row-val">
+          <button id="btn-session-toggle" onclick="toggleSessionFilter()" class="tf-btn">...</button>
+        </span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">
+        Jika OFF — bot trade 24 jam (spread filter tetap aktif sebagai penjaga).
+      </div>
+    </div>
+  </div>
+
+  <!-- Pilih sesi -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-adjustments"></i> Pilih Sesi Trading</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="session-toggles">
+      <button onclick="toggleSession('asia')"       id="sess-asia"       class="sess-btn">🌏 Asia<br><span style="font-size:10px;color:var(--muted)">00:00–08:00 WIB</span></button>
+      <button onclick="toggleSession('pre_london')" id="sess-pre_london" class="sess-btn">🌅 Pre-London<br><span style="font-size:10px;color:var(--muted)">08:00–14:00 WIB</span></button>
+      <button onclick="toggleSession('london')"     id="sess-london"     class="sess-btn">🏛 London<br><span style="font-size:10px;color:var(--muted)">14:00–20:00 WIB</span></button>
+      <button onclick="toggleSession('new_york')"   id="sess-new_york"   class="sess-btn">🗽 New York<br><span style="font-size:10px;color:var(--muted)">19:00–24:00 WIB</span></button>
+    </div>
+    <button onclick="applySessionPresets()" style="width:100%;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">
+      <i class="ti ti-check"></i> Terapkan Pilihan
+    </button>
+  </div>
+
+  <!-- Tabel rekomendasi -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-info-circle"></i> Rekomendasi Sesi (Gold / XAU)</div>
+    <div id="session-table-content"></div>
+  </div>
+
+  <!-- Status sekarang -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-current-location"></i> Status Sesi Sekarang</div>
+    <div id="session-now-content"><div class="empty"><i class="ti ti-loader"></i>Loading...</div></div>
+  </div>
+
 </div>
 
 <!-- PAGE: FILTER -->
@@ -535,6 +595,140 @@ async function loadFilter() {
   `;
 }
 
+// ── Session page ──────────────────────────────────────────────────────────────
+const SESSION_INFO = {
+  asia:       { label:'Asia',       icon:'🌏', wib:'00:00–08:00', spread:'Lebar (100-300 pts)', quality:'⚠️ Hindari', rec:'skip', tip:'Volume rendah, spread sangat lebar. Bot otomatis terblock spread filter.' },
+  pre_london: { label:'Pre-London', icon:'🌅', wib:'08:00–14:00', spread:'Sedang (20-60 pts)',  quality:'🟡 Hati-hati', rec:'optional', tip:'Spread mulai turun. Bisa ada setup tapi volatilitas belum optimal.' },
+  london:     { label:'London',     icon:'🏛', wib:'14:00–20:00', spread:'Normal (5-20 pts)',   quality:'✅ Terbaik', rec:'best', tip:'Volume tertinggi untuk gold. Spread paling rendah. Entry paling reliable.' },
+  new_york:   { label:'New York',   icon:'🗽', wib:'19:00–24:00', spread:'Normal (5-25 pts)',   quality:'✅ Bagus', rec:'good', tip:'Overlap London+NY (19:00-20:00 WIB) sangat aktif. Setelah 21:00 mulai melambat.' },
+};
+
+let _sessionState = { enabled: false, active_sessions: [] };
+let _pendingSessions = [];
+
+async function loadSession() {
+  const d = await api('/session/config');
+  if (!d) return;
+  _sessionState = d;
+  _pendingSessions = [...(d.active_sessions || [])];
+  renderSessionMaster(d);
+  renderSessionToggles(d);
+  renderSessionTable(d);
+  renderSessionNow(d);
+}
+
+function renderSessionMaster(d) {
+  const btn = document.getElementById('btn-session-toggle');
+  if (d.enabled) {
+    btn.textContent = 'ON — Filter Aktif';
+    btn.className = 'tf-btn tf-active';
+  } else {
+    btn.textContent = 'OFF — Trade 24 Jam';
+    btn.className = 'tf-btn';
+  }
+}
+
+function renderSessionToggles(d) {
+  const active = d.active_sessions || [];
+  const nowSessions = d.current_session_now || [];
+  Object.keys(SESSION_INFO).forEach(key => {
+    const btn = document.getElementById('sess-' + key);
+    if (!btn) return;
+    const isActive = _pendingSessions.includes(key);
+    const isNow = nowSessions.includes(key);
+    btn.className = 'sess-btn' + (isActive ? ' active' : '') + (!isActive && SESSION_INFO[key].rec==='skip' ? ' warn' : '');
+    // tambahkan indikator "SEKARANG" jika sesi ini sedang berjalan
+    const info = SESSION_INFO[key];
+    btn.innerHTML = `${info.icon} ${info.label}${isNow ? ' <span class="sess-now">●</span>' : ''}<br><span style="font-size:10px;color:var(--muted)">${info.wib} WIB</span>`;
+  });
+}
+
+function renderSessionTable(d) {
+  const el = document.getElementById('session-table-content');
+  const nowSessions = d.current_session_now || [];
+  let html = `<table class="sess-tbl">
+    <tr><th>Sesi</th><th>WIB</th><th>Spread</th><th>Kualitas</th></tr>`;
+  Object.entries(SESSION_INFO).forEach(([key, s]) => {
+    const isNow = nowSessions.includes(key);
+    const rowStyle = isNow ? 'background:#1c2128' : '';
+    html += `<tr style="${rowStyle}">
+      <td><span style="font-weight:600">${s.icon} ${s.label}</span>${isNow ? ' <span class="badge badge-blue" style="font-size:9px">SEKARANG</span>' : ''}</td>
+      <td style="color:var(--muted)">${s.wib}</td>
+      <td style="color:${s.rec==='skip'?'var(--red)':s.rec==='optional'?'var(--yellow)':'var(--green)'}">${s.spread}</td>
+      <td>${s.quality}</td>
+    </tr>
+    <tr style="${rowStyle}"><td colspan="4" style="font-size:10px;color:var(--muted);padding:2px 8px 8px">${s.tip}</td></tr>`;
+  });
+  html += '</table>';
+  el.innerHTML = html;
+}
+
+function renderSessionNow(d) {
+  const el = document.getElementById('session-now-content');
+  const wib = d.current_wib_hour;
+  const nowSessions = d.current_session_now || [];
+  const active = d.active_sessions || [];
+
+  const inActive = active.length === 0 || nowSessions.some(s => active.includes(s));
+  const filterOn = d.enabled;
+
+  let statusHtml = '';
+  if (!filterOn) {
+    statusHtml = badge('Filter OFF — Bot trade kapanpun', 'blue');
+  } else if (inActive || active.length === 0) {
+    statusHtml = badge('DALAM SESI — Bot aktif entry', 'green');
+  } else {
+    statusHtml = badge('DI LUAR SESI — Bot skip entry', 'red');
+  }
+
+  const nowLabels = nowSessions.map(s => SESSION_INFO[s]?.icon + ' ' + SESSION_INFO[s]?.label).join(', ') || '—';
+  const activeLabels = active.length ? active.map(s => SESSION_INFO[s]?.label).join(', ') : 'Semua (24 jam)';
+
+  el.innerHTML = `
+    ${row('Jam Sekarang', `<span class="blue">${String(wib).padStart(2,'0')}:xx WIB</span>`, 'clock')}
+    ${row('Sesi Berlangsung', nowLabels || '—', 'map-pin')}
+    ${row('Sesi Dipilih', activeLabels, 'adjustments')}
+    ${row('Status Bot', statusHtml, 'robot')}
+    ${d.enabled && (d.open_wib !== undefined) ? row('Jam Aktif', `${d.open_wib}:00 – ${d.close_wib}:00 WIB`, 'clock-hour-4') : ''}
+  `;
+}
+
+async function toggleSessionFilter() {
+  const newVal = !_sessionState.enabled;
+  const d = await api('/session/config');
+  if (!d) return;
+  await fetch('/session/config', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ enabled: newVal })
+  });
+  await loadSession();
+}
+
+function toggleSession(key) {
+  const idx = _pendingSessions.indexOf(key);
+  if (idx >= 0) _pendingSessions.splice(idx, 1);
+  else _pendingSessions.push(key);
+  // update visual sementara
+  renderSessionToggles({ ..._sessionState, active_sessions: _pendingSessions });
+}
+
+async function applySessionPresets() {
+  const enabled = _pendingSessions.length > 0;
+  await fetch('/session/config', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ enabled: enabled, sessions: _pendingSessions })
+  });
+  await loadSession();
+  // flash feedback
+  const btn = document.querySelector('[onclick="applySessionPresets()"]');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="ti ti-check"></i> Tersimpan!';
+  btn.style.background = 'var(--green)';
+  setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; }, 1500);
+}
+
 // ── Refresh loops ─────────────────────────────────────────────────────────────
 async function refreshLive() {
   await Promise.all([loadAccount(), loadToday(), loadPositions(), loadCooldown(), loadAnalysis()]);
@@ -551,11 +745,13 @@ refreshLive();
 refreshReport();
 loadTrades();
 loadFilter();
+loadSession();
 
 setInterval(refreshLive, 3000);
 setInterval(refreshReport, 30000);
 setInterval(loadTrades, 15000);
 setInterval(loadFilter, 30000);
+setInterval(loadSession, 10000);
 
 // ── Terminal / Log ────────────────────────────────────────────────────────────
 let termPaused = false;
