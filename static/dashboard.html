@@ -694,7 +694,8 @@ tr:hover td{background:#1c2128}
       <label>Trailing SL Aktif</label>
       <div class="cfg-toggle" id="cfg-trailing_sl_enabled" onclick="toggleCfg('trailing_sl_enabled')"></div>
     </div>
-    <div class="cfg-row"><label>Jarak Trailing (pts)</label><input type="number" id="cfg-trailing_sl_points" step="10" min="50"></div>
+    <div class="cfg-row"><label>Jarak Trailing (pts)</label><input type="number" id="cfg-trailing_sl_points" step="100" min="100"></div>
+    <div class="cfg-row"><label>Step Minimum Gerak (pts)</label><input type="number" id="cfg-trailing_sl_step_points" step="50" min="50"></div>
     <button class="cfg-save-btn" onclick="saveConfig('trailing')">Simpan Trailing SL</button>
   </div>
 
@@ -705,7 +706,8 @@ tr:hover td{background:#1c2128}
       <label>Break Even Aktif</label>
       <div class="cfg-toggle" id="cfg-break_even_enabled" onclick="toggleCfg('break_even_enabled')"></div>
     </div>
-    <div class="cfg-row"><label>Trigger Profit (pts)</label><input type="number" id="cfg-break_even_trigger_points" step="10" min="20"></div>
+    <div class="cfg-row"><label>Trigger Profit (pts)</label><input type="number" id="cfg-break_even_trigger_points" step="100" min="100"></div>
+    <div class="cfg-row"><label>Buffer di atas Entry (pts)</label><input type="number" id="cfg-break_even_buffer_points" step="50" min="0"></div>
     <button class="cfg-save-btn" onclick="saveConfig('breakeven')">Simpan Break Even</button>
   </div>
 
@@ -2022,8 +2024,10 @@ async function loadConfig() {
   cfgSet('loss_cooldown_minutes', cfg.loss_cooldown_minutes);
   cfgSet('trailing_sl_enabled', cfg.trailing_sl_enabled);
   cfgSet('trailing_sl_points', cfg.trailing_sl_points);
+  cfgSet('trailing_sl_step_points', cfg.trailing_sl_step_points);
   cfgSet('break_even_enabled', cfg.break_even_enabled);
   cfgSet('break_even_trigger_points', cfg.break_even_trigger_points);
+  cfgSet('break_even_buffer_points', cfg.break_even_buffer_points);
   cfgSet('partial_close_enabled', cfg.partial_close_enabled);
   cfgSet('partial_close_trigger_points', cfg.partial_close_trigger_points);
   cfgSet('partial_close_ratio_pct', Math.round((cfg.partial_close_ratio || 0.5) * 100));
@@ -2042,8 +2046,8 @@ async function loadConfig() {
 const CFG_GROUPS = {
   trading:  ['lot_size','max_spread_points','min_rr_ratio','daily_loss_enabled','daily_loss_percent','entry_interval_seconds','max_positions_per_symbol'],
   cooldown: ['loss_cooldown_enabled','loss_cooldown_trigger','loss_cooldown_minutes'],
-  trailing: ['trailing_sl_enabled','trailing_sl_points'],
-  breakeven:['break_even_enabled','break_even_trigger_points'],
+  trailing: ['trailing_sl_enabled','trailing_sl_points','trailing_sl_step_points'],
+  breakeven:['break_even_enabled','break_even_trigger_points','break_even_buffer_points'],
   partial:  ['partial_close_enabled','partial_close_trigger_points'],
   eod:      ['eod_close_enabled','eod_hour','eod_minute'],
   filters:  ['news_filter_enabled','dxy_filter_enabled'],
