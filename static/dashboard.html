@@ -126,8 +126,11 @@ tr:hover td{background:#1c2128}
 <div class="header">
   <div class="header-left">
     <div class="dot"></div>
-    <span class="logo">POLYBOT</span>
-    <span id="status-badge" class="badge badge-gray">Connecting</span>
+    <div>
+      <span class="logo">POLYBOT</span>
+      <span id="status-badge" class="badge badge-gray" style="margin-left:6px">Connecting</span>
+      <div style="font-size:10px;color:var(--muted);margin-top:1px">XAUUSDm · EMA50 Band · MT5 Bridge</div>
+    </div>
   </div>
   <span class="clock" id="clock"></span>
 </div>
@@ -158,6 +161,38 @@ tr:hover td{background:#1c2128}
 
 <!-- PAGE: LIVE -->
 <div class="page active" id="page-live">
+
+  <!-- Project Info -->
+  <div class="card" style="border-color:var(--blue-bg);background:linear-gradient(135deg,#0d1117 60%,#1a2a3a)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div>
+        <div style="font-size:16px;font-weight:800;color:var(--blue);letter-spacing:.5px;margin-bottom:4px">🤖 Polybot</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.6;margin-bottom:8px">
+          Bot trading otomatis untuk <span style="color:var(--yellow);font-weight:600">XAUUSDm (Gold)</span> menggunakan MetaTrader 5 via HTTP Bridge EA.
+        </div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          <span style="color:var(--green)">▸</span> Strategi <b style="color:var(--text)">EMA50 High/Low Band</b> — entry saat harga breakout atau pullback ke band<br>
+          <span style="color:var(--green)">▸</span> Filter <b style="color:var(--text)">spread, sesi, cooldown, daily loss</b> untuk proteksi modal<br>
+          <span style="color:var(--green)">▸</span> RR <b style="color:var(--text)">1:2</b> — break-even hanya butuh <b style="color:var(--yellow)">34% win rate</b>
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">Sesi Aktif</div>
+        <div style="font-size:11px;font-weight:700;color:var(--green)" id="info-session">–</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px">Strategi</div>
+        <div style="font-size:11px;font-weight:700;color:var(--blue)">EMA50 Band</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:8px">Timeframe</div>
+        <div style="font-size:11px;font-weight:700;color:var(--text)">M15</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <span class="badge badge-blue">XAUUSDm</span>
+      <span class="badge badge-green">RR 1:2</span>
+      <span class="badge badge-yellow">London + NY</span>
+      <span class="badge" style="background:var(--border2);color:var(--muted)">Spread ≤50pts</span>
+      <span class="badge" style="background:var(--border2);color:var(--muted)">Loss Stop 3%</span>
+    </div>
+  </div>
 
   <!-- Account -->
   <div class="card">
@@ -664,6 +699,21 @@ async function loadSession() {
   renderSessionToggles(d);
   renderSessionTable(d);
   renderSessionNow(d);
+  // Update info card di halaman Live
+  const el = document.getElementById('info-session');
+  if (el) {
+    const now = (d.current_session_now || []).filter(s => s !== 'asia');
+    if (!d.enabled) {
+      el.textContent = 'Filter OFF';
+      el.style.color = 'var(--muted)';
+    } else if (now.length > 0) {
+      el.textContent = now.map(s => SESSION_INFO[s]?.icon + ' ' + SESSION_INFO[s]?.label).join(', ');
+      el.style.color = 'var(--green)';
+    } else {
+      el.textContent = 'Di luar sesi';
+      el.style.color = 'var(--yellow)';
+    }
+  }
 }
 
 function renderSessionMaster(d) {
