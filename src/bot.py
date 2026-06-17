@@ -30,11 +30,22 @@ _state: dict = {
     "open_tickets": {},
     "last_entry_time": {},      # symbol -> datetime
     "_last_pnl_snapshot": {},   # ticket -> float profit saat terakhir lihat
+    "bot_paused": False,        # True = bot tidak akan entry baru
 }
 
 
 def get_state() -> dict:
     return _state
+
+
+def pause_bot() -> None:
+    _state["bot_paused"] = True
+    logger.warning("[BOT] Bot di-PAUSE — tidak ada entry baru")
+
+
+def resume_bot() -> None:
+    _state["bot_paused"] = False
+    logger.info("[BOT] Bot di-RESUME — entry aktif kembali")
 
 
 def init_state() -> None:
@@ -143,6 +154,9 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
     _state["pending_commands"].extend(mgmt_cmds)
 
     # ── Entry logic ──────────────────────────────────────────
+
+    if _state["bot_paused"]:
+        return
 
     if not is_trading_session():
         return

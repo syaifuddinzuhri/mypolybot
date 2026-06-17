@@ -150,7 +150,13 @@ tr:hover td{background:#1c2128}
       <div style="font-size:10px;color:var(--muted);margin-top:1px">XAUUSDm · EMA50 Band · MT5 Bridge</div>
     </div>
   </div>
-  <span class="clock" id="clock"></span>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button id="bot-toggle-btn" onclick="toggleBot()"
+      style="padding:5px 12px;border-radius:6px;border:none;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .2s">
+      <i class="ti ti-player-pause"></i> <span id="bot-toggle-label">Pause</span>
+    </button>
+    <span class="clock" id="clock"></span>
+  </div>
 </div>
 
 <nav class="nav">
@@ -1257,6 +1263,47 @@ setInterval(loadTrades, 15000);
 setInterval(loadFilter, 30000);
 setInterval(loadSession, 10000);
 setInterval(loadProbability, 30000);
+
+// ── Bot Pause / Resume ────────────────────────────────────────────────────────
+let _botPaused = false;
+
+function _applyBotState(paused) {
+  _botPaused = paused;
+  const btn = document.getElementById('bot-toggle-btn');
+  const lbl = document.getElementById('bot-toggle-label');
+  const icon = btn.querySelector('i');
+  if (paused) {
+    btn.style.background = 'var(--green)';
+    btn.style.color = '#000';
+    icon.className = 'ti ti-player-play';
+    lbl.textContent = 'Resume';
+  } else {
+    btn.style.background = 'var(--red)';
+    btn.style.color = '#fff';
+    icon.className = 'ti ti-player-pause';
+    lbl.textContent = 'Pause';
+  }
+}
+
+async function loadBotStatus() {
+  try {
+    const r = await fetch('/bot/status');
+    const d = await r.json();
+    _applyBotState(d.paused);
+  } catch(e) {}
+}
+
+async function toggleBot() {
+  const endpoint = _botPaused ? '/bot/resume' : '/bot/pause';
+  try {
+    const r = await fetch(endpoint, {method:'POST'});
+    const d = await r.json();
+    _applyBotState(d.status === 'paused');
+  } catch(e) { alert('Gagal menghubungi server'); }
+}
+
+loadBotStatus();
+setInterval(loadBotStatus, 10000);
 
 // ── Probability Page ─────────────────────────────────────────────────────────
 

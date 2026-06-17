@@ -10,7 +10,7 @@ from .types import (
     EARatesPayload, EACommand, TickData, SymbolMeta,
     AccountInfo, Position,
 )
-from .bot import process_rates, pop_command, get_state, update_today_pnl
+from .bot import process_rates, pop_command, get_state, update_today_pnl, pause_bot, resume_bot
 from .config import settings
 
 app = FastAPI(title="Polybot Bridge Server", version="1.0.0")
@@ -517,6 +517,28 @@ async def session_config_set(req: SessionConfigRequest):
 async def macro_status():
     from .news_filter import get_macro_status
     return get_macro_status()
+
+
+@app.get("/bot/status")
+async def bot_status():
+    """Status bot: running atau paused."""
+    state = get_state()
+    paused = state.get("bot_paused", False)
+    return {"paused": paused, "status": "paused" if paused else "running"}
+
+
+@app.post("/bot/pause")
+async def bot_pause():
+    """Pause bot — tidak ada entry baru, posisi berjalan tetap dikelola."""
+    pause_bot()
+    return {"status": "paused"}
+
+
+@app.post("/bot/resume")
+async def bot_resume():
+    """Resume bot — entry aktif kembali."""
+    resume_bot()
+    return {"status": "running"}
 
 
 @app.get("/report")
