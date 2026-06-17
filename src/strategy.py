@@ -31,30 +31,47 @@ def _ema_band(bars: List[RateBar], period: int) -> tuple[np.ndarray, np.ndarray]
 
 def detect_trend(bars: List[RateBar], point: float) -> Optional[Direction]:
     """
-    Trend dari EMA50 High/Low Band:
-      - Uptrend   → candle close DI ATAS band atas (EMA50 dari high)
-      - Downtrend → candle close DI BAWAH band bawah (EMA50 dari low)
-      - Di dalam band → netral, tidak ada trend
+    Trend dari EMA50 High/Low Band — evaluasi 5 candle terakhir (majority vote):
+      - Uptrend   → mayoritas candle close DI ATAS band atas
+      - Downtrend → mayoritas candle close DI BAWAH band bawah
+      - Campuran  → netral
 
-    Dievaluasi pada candle terakhir yang SUDAH close (bars[-2]).
+    Pendekatan ini menangkap trend meski harga sedang pullback ke dalam band.
     """
     period = settings.ema_slow
-    if len(bars) < period + 3:
+    lookback = 5  # candle terakhir yang dievaluasi
+    if len(bars) < period + lookback + 2:
         return None
 
     ema_high, ema_low = _ema_band(bars, period)
-    idx = -2  # candle terakhir yang sudah close
-    c = bars[idx].close
-    eh, el = ema_high[idx], ema_low[idx]
 
-    if c > eh:
-        logger.debug(f"[TREND] BUY — close {c:.3f} di atas band atas {eh:.3f}")
+    buy_count = 0
+    sell_count = 0
+    for i in range(lookback):
+        idx = -(2 + i)  # mulai dari candle terakhir yang sudah close
+        c = bars[idx].close
+        eh, el = ema_high[idx], ema_low[idx]
+        if c > eh:
+            buy_count += 1
+        elif c < el:
+            sell_count += 1
+
+    # Minimal 3 dari 5 candle harus konsisten
+    if buy_count >= 3:
+        eh_now = ema_high[-2]
+        el_now = ema_low[-2]
+        logger.debug(f"[TREND] BUY — {buy_count}/{lookback} candle di atas band atas")
         return Direction.BUY
-    if c < el:
-        logger.debug(f"[TREND] SELL — close {c:.3f} di bawah band bawah {el:.3f}")
+    if sell_count >= 3:
+        logger.debug(f"[TREND] SELL — {sell_count}/{lookback} candle di bawah band bawah")
         return Direction.SELL
 
-    logger.debug(f"[TREND] Netral — close {c:.3f} di dalam band [{el:.3f}, {eh:.3f}]")
+    c_last = bars[-2].close
+    eh_now, el_now = ema_high[-2], ema_low[-2]
+    logger.debug(
+        f"[TREND] Netral — buy={buy_count} sell={sell_count}/{lookback} "
+        f"close={c_last:.3f} band=[{el_now:.3f},{eh_now:.3f}]"
+    )
     return None
 
 
@@ -159,42 +176,46 @@ def analyze(
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
     if direction == Direction.BUY:
-        # Candle menyentuh band atas (pullback) + close di atas band + bullish
-        touched    = conf.low <= eh
-        closed_out = conf.close >= eh
-        bullish    = conf.close > conf.open
+        # Pullback turun menyentuh upper band → bounce bullish
+        # "touched" = candle low menyentuh band atas (support di uptrend)
+        touched = conf.low <= eh
+        bullish = conf.close > conf.open
+        # close minimal di atas lower band (tidak harus melewati upper band)
+        close_valid = conf.close >= el
 
-        if not (touched and closed_out and bullish):
+        if not (touched and bullish and close_valid):
             logger.info(
                 f"[NO TRADE][{symbol}] BUY belum konfirmasi band {band_str} — "
-                f"touch={touched} close_out={closed_out} bull={bullish}"
+                f"touch={touched} bull={bullish} close_valid={close_valid}"
             )
             return None
 
         sl = conf.low - buffer
         sl_dist = price - sl
         if sl_dist <= 0:
-            logger.info(f"[NO TRADE][{symbol}] BUY SL invalid (harga sudah di bawah wick)")
+            logger.info(f"[NO TRADE][{symbol}] BUY SL invalid")
             return None
         tp = price + sl_dist * rr_target
 
     else:  # SELL
-        # Candle menyentuh band bawah (pullback) + close di bawah band + bearish
-        touched    = conf.high >= el
-        closed_out = conf.close <= el
-        bearish    = conf.close < conf.open
+        # Pullback naik menyentuh upper band → rejection bearish
+        # "touched" = candle high menyentuh band atas (resistance di downtrend)
+        touched = conf.high >= eh
+        bearish = conf.close < conf.open
+        # close minimal di bawah upper band
+        close_valid = conf.close <= eh
 
-        if not (touched and closed_out and bearish):
+        if not (touched and bearish and close_valid):
             logger.info(
                 f"[NO TRADE][{symbol}] SELL belum konfirmasi band {band_str} — "
-                f"touch={touched} close_out={closed_out} bear={bearish}"
+                f"touch={touched} bear={bearish} close_valid={close_valid}"
             )
             return None
 
         sl = conf.high + buffer
         sl_dist = sl - price
         if sl_dist <= 0:
-            logger.info(f"[NO TRADE][{symbol}] SELL SL invalid (harga sudah di atas wick)")
+            logger.info(f"[NO TRADE][{symbol}] SELL SL invalid")
             return None
         tp = price - sl_dist * rr_target
 
