@@ -118,11 +118,20 @@ def check_max_positions(symbol: str, positions: list[Position]) -> bool:
     return True
 
 
+# Throttle log spread — hanya log sekali per 60 detik per symbol (hindari banjir log)
+_spread_last_log: dict = {}
+
 def check_spread(spread: int, symbol: str) -> bool:
     if spread > settings.max_spread_points:
-        logger.warning(
-            f"[RISK][{symbol}] Spread too high: {spread} > {settings.max_spread_points}"
-        )
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        last = _spread_last_log.get(symbol)
+        if last is None or (now - last).total_seconds() >= 60:
+            logger.warning(
+                f"[RISK][{symbol}] Spread terlalu lebar: {spread} > {settings.max_spread_points} "
+                f"— entry diblock (log ditahan 60 detik)"
+            )
+            _spread_last_log[symbol] = now
         return False
     return True
 
