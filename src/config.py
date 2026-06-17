@@ -85,11 +85,14 @@ class Settings(BaseSettings):
     dxy_refresh_seconds: int = 300      # refresh DXY tiap 5 menit
     dxy_trend_threshold: float = 0.15   # selisih DXY vs EMA untuk dianggap "trending"
 
+    # SL Buffer
+    sl_atr_multiplier: float = 2.0   # buffer = ATR × multiplier
+    sl_min_points: int = 4000        # minimum buffer dalam points (×point = nilai $)
+
     # Multi-TP SL Management
     multi_tp_enabled: bool = True
     tp1_rr: float = 1.0   # TP1 di 1:1 → geser SL ke Break Even
     tp2_rr: float = 2.0   # TP2 di 1:2 → geser SL ke +1x SL (lock profit)
-    # TP3 = trailing SL mengambil alih (tidak ada level fixed)
 
     # Telegram Notification
     telegram_enabled: bool = False

@@ -174,7 +174,7 @@ def analyze(
     rr_target = settings.min_rr_ratio
     # ATR dari M15 untuk SL buffer yang lebih stabil
     atr = _atr(bars)
-    buffer = max(atr * 2.0, 4000 * point)   # SL 2x ATR di luar wick, min $4.00
+    buffer = max(atr * settings.sl_atr_multiplier, settings.sl_min_points * point)
 
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
