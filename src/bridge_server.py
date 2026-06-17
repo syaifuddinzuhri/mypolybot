@@ -554,6 +554,110 @@ async def bot_reset_daily():
     return {"status": "ok", "today_pnl": 0.0, "today_loss_count": 0}
 
 
+class ManualSignal(BaseModel):
+    symbol: str = "XAUUSDm"
+    direction: str          # "BUY" | "SELL"
+    entry: float = 0.0      # 0 = market price
+    sl: float
+    tp1: Optional[float] = None
+    tp2: Optional[float] = None
+    lot: float = 0.01
+
+
+_manual_signals: list = []   # history signal manual
+
+
+@app.post("/signal/execute")
+async def signal_execute(sig: ManualSignal):
+    """Eksekusi manual signal dari group — bot kirim order ke MT5."""
+    from .bot import get_state
+    from datetime import datetime, timezone, timedelta
+
+    state = get_state()
+    symbol = sig.symbol
+
+    # Ambil harga market jika entry = 0
+    tick = _cache["ticks"].get(symbol)
+    if sig.entry == 0:
+        if tick is None:
+            return {"status": "error", "reason": "Tick belum tersedia, EA belum terhubung"}
+        entry_price = tick.ask if sig.direction == "BUY" else tick.bid
+    else:
+        entry_price = sig.entry
+
+    # Validasi SL
+    if sig.direction == "SELL" and sig.sl <= entry_price:
+        return {"status": "error", "reason": f"SELL: SL ({sig.sl}) harus di atas entry ({entry_price})"}
+    if sig.direction == "BUY" and sig.sl >= entry_price:
+        return {"status": "error", "reason": f"BUY: SL ({sig.sl}) harus di bawah entry ({entry_price})"}
+
+    # TP yang dikirim ke MT5 = TP2 jika ada, fallback TP1
+    mt5_tp = sig.tp2 or sig.tp1 or 0.0
+
+    cmd = EACommand(
+        action=sig.direction,
+        symbol=symbol,
+        lot=sig.lot,
+        sl=sig.sl,
+        tp=mt5_tp,
+        comment="manual_signal",
+    )
+    state["pending_commands"].append(cmd)
+
+    # Simpan meta untuk multi-TP SL management
+    WIB = timezone(timedelta(hours=7))
+    now_wib = datetime.now(WIB).strftime("%H:%M WIB")
+    meta = {
+        "direction": sig.direction,
+        "lot": sig.lot,
+        "entry": round(entry_price, 5),
+        "sl": sig.sl,
+        "sl_original": sig.sl,
+        "tp": mt5_tp,
+        "tp1": sig.tp1,
+        "tp2": sig.tp2,
+        "comment": "manual_signal",
+        "manual": True,
+        "time": now_wib,
+    }
+    state.setdefault("_position_meta_pending", []).append(meta)
+
+    # Simpan ke history
+    _manual_signals.append({**meta, "symbol": symbol, "profit": 0.0})
+
+    logger.info(
+        f"[SIGNAL] Manual {sig.direction} {symbol} entry={entry_price} "
+        f"sl={sig.sl} tp1={sig.tp1} tp2={sig.tp2} lot={sig.lot}"
+    )
+    return {"status": "ok", "entry": entry_price, "sl": sig.sl, "tp": mt5_tp}
+
+
+@app.get("/signal/active")
+async def signal_active():
+    """Daftar signal manual yang aktif (posisi terbuka)."""
+    from .bot import get_state
+    state = get_state()
+    positions = _cache.get("positions", [])
+    manual_pos = [p for p in positions if "manual" in p.comment]
+
+    result = []
+    for p in manual_pos:
+        meta = state.get("_position_meta", {}).get(p.ticket, {})
+        result.append({
+            "ticket": p.ticket,
+            "symbol": p.symbol,
+            "direction": "BUY" if p.type == "buy" else "SELL",
+            "entry": p.price_open,
+            "sl": p.sl,
+            "tp1": meta.get("tp1"),
+            "tp2": meta.get("tp2"),
+            "lot": p.volume,
+            "profit": p.profit,
+            "time": meta.get("time", ""),
+        })
+    return {"signals": result}
+
+
 @app.get("/report")
 async def weekly_report(weeks_back: int = 1):
     """Laporan performa mingguan bot."""

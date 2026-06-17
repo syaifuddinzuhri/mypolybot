@@ -401,15 +401,17 @@ def _multi_tp_sl_commands(
         if sl_dist <= 0:
             continue
 
-        tp1_price = (entry - sl_dist * settings.tp1_rr) if pos.type == "sell" else (entry + sl_dist * settings.tp1_rr)
-        tp2_price = (entry - sl_dist * settings.tp2_rr) if pos.type == "sell" else (entry + sl_dist * settings.tp2_rr)
+        # Gunakan explicit TP1/TP2 dari manual signal jika tersedia
+        # Fallback ke RR-based calculation untuk bot auto signal
+        explicit_tp1 = meta.get("tp1")
+        explicit_tp2 = meta.get("tp2")
 
         current_price = tick.ask if pos.type == "sell" else tick.bid
 
         if pos.type == "sell":
             profit_dist = entry - current_price
-            tp1_hit = profit_dist >= sl_dist * settings.tp1_rr
-            tp2_hit = profit_dist >= sl_dist * settings.tp2_rr
+            tp1_hit = (current_price <= explicit_tp1) if explicit_tp1 else (profit_dist >= sl_dist * settings.tp1_rr)
+            tp2_hit = (current_price <= explicit_tp2) if explicit_tp2 else (profit_dist >= sl_dist * settings.tp2_rr)
 
             # TP2 hit → lock profit: SL = entry - 1x SL distance (profit zone)
             if tp2_hit:
@@ -435,8 +437,9 @@ def _multi_tp_sl_commands(
 
         else:  # BUY
             profit_dist = current_price - entry
-            tp1_hit = profit_dist >= sl_dist * settings.tp1_rr
-            tp2_hit = profit_dist >= sl_dist * settings.tp2_rr
+            profit_dist_buy = current_price - entry
+            tp1_hit = (current_price >= explicit_tp1) if explicit_tp1 else (profit_dist_buy >= sl_dist * settings.tp1_rr)
+            tp2_hit = (current_price >= explicit_tp2) if explicit_tp2 else (profit_dist_buy >= sl_dist * settings.tp2_rr)
 
             if tp2_hit:
                 new_sl = round(entry + sl_dist, 5)

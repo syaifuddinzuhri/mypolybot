@@ -184,6 +184,9 @@ tr:hover td{background:#1c2128}
   <button class="nav-btn" onclick="showPage('chart')" id="tab-chart">
     <i class="ti ti-chart-candle"></i> Chart
   </button>
+  <button class="nav-btn" onclick="showPage('signal')" id="tab-signal">
+    <i class="ti ti-send"></i> Signal
+  </button>
   <button class="nav-btn" onclick="showPage('config')" id="tab-config">
     <i class="ti ti-settings"></i> Config
   </button>
@@ -564,6 +567,85 @@ tr:hover td{background:#1c2128}
 </div>
 
 <!-- PAGE: CONFIG -->
+<!-- PAGE: SIGNAL -->
+<div class="page" id="page-signal">
+  <div class="card" style="max-width:480px;margin:0 auto">
+    <div class="card-title"><i class="ti ti-send"></i> Manual Signal Executor</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:14px">
+      Input signal dari group/analyst — bot eksekusi order + kelola risk otomatis (BE, trailing, multi-TP).
+    </p>
+
+    <!-- Direction -->
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button id="sig-btn-sell" onclick="setSigDir('SELL')"
+        style="flex:1;padding:10px;border-radius:8px;border:2px solid var(--red);background:var(--red);color:#fff;font-weight:700;font-size:14px;cursor:pointer">
+        ▼ SELL
+      </button>
+      <button id="sig-btn-buy" onclick="setSigDir('BUY')"
+        style="flex:1;padding:10px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer">
+        ▲ BUY
+      </button>
+    </div>
+
+    <!-- Price inputs -->
+    <div style="display:grid;gap:10px">
+      <div class="cfg-row">
+        <label>Entry Price <span style="color:var(--muted);font-size:10px">(0 = market price)</span></label>
+        <input type="number" id="sig-entry" step="0.001" min="0" value="0" style="width:140px">
+      </div>
+      <div class="cfg-row">
+        <label>Stop Loss <span style="color:var(--red);font-size:10px">★</span></label>
+        <input type="number" id="sig-sl" step="0.001" min="0" style="width:140px">
+      </div>
+      <div class="cfg-row">
+        <label>Take Profit 1 <span style="color:var(--muted);font-size:10px">(→ geser SL ke BE)</span></label>
+        <input type="number" id="sig-tp1" step="0.001" min="0" style="width:140px">
+      </div>
+      <div class="cfg-row">
+        <label>Take Profit 2 <span style="color:var(--muted);font-size:10px">(→ lock profit)</span></label>
+        <input type="number" id="sig-tp2" step="0.001" min="0" style="width:140px">
+      </div>
+      <div class="cfg-row">
+        <label>Lot Size</label>
+        <input type="number" id="sig-lot" step="0.01" min="0.01" value="0.01" style="width:140px">
+      </div>
+      <div class="cfg-row">
+        <label>Symbol</label>
+        <input type="text" id="sig-symbol" value="XAUUSDm" style="width:140px">
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div id="sig-preview" style="margin:14px 0;padding:12px;background:var(--bg);border-radius:8px;font-size:12px;display:none">
+      <div style="font-weight:700;margin-bottom:6px" id="sig-prev-dir"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;color:var(--muted)">
+        <span>Entry:</span><span id="sig-prev-entry" style="color:var(--fg)"></span>
+        <span>SL:</span><span id="sig-prev-sl" style="color:var(--red)"></span>
+        <span>TP1:</span><span id="sig-prev-tp1" style="color:var(--green)"></span>
+        <span>TP2:</span><span id="sig-prev-tp2" style="color:var(--green)"></span>
+        <span>Risk (SL dist):</span><span id="sig-prev-rr" style="color:var(--yellow)"></span>
+      </div>
+    </div>
+
+    <button onclick="previewSignal()" style="width:100%;padding:9px;border-radius:6px;border:1px solid var(--blue);background:transparent;color:var(--blue);font-weight:600;cursor:pointer;margin-bottom:8px;font-size:13px">
+      👁 Preview Signal
+    </button>
+    <button onclick="executeSignal()" id="sig-exec-btn"
+      style="width:100%;padding:10px;border-radius:6px;border:none;background:var(--red);color:#fff;font-weight:700;cursor:pointer;font-size:14px">
+      ▼ Execute SELL Signal
+    </button>
+    <div id="sig-toast" style="display:none;margin-top:10px;padding:8px 12px;border-radius:6px;font-size:12px;text-align:center"></div>
+  </div>
+
+  <!-- Active manual signals -->
+  <div class="card" style="max-width:480px;margin:12px auto 0">
+    <div class="card-title"><i class="ti ti-list-check"></i> Signal Aktif</div>
+    <div id="sig-active-list" style="font-size:12px;color:var(--muted);text-align:center;padding:16px">
+      Belum ada signal aktif
+    </div>
+  </div>
+</div>
+
 <div class="page" id="page-config">
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px">
@@ -1314,6 +1396,136 @@ async function toggleBot() {
 
 loadBotStatus();
 setInterval(loadBotStatus, 10000);
+
+// ── Manual Signal Executor ────────────────────────────────────────────────────
+
+let _sigDir = 'SELL';
+
+function setSigDir(dir) {
+  _sigDir = dir;
+  const sellBtn = document.getElementById('sig-btn-sell');
+  const buyBtn  = document.getElementById('sig-btn-buy');
+  const execBtn = document.getElementById('sig-exec-btn');
+  if (dir === 'SELL') {
+    sellBtn.style.background = 'var(--red)';
+    sellBtn.style.color = '#fff';
+    sellBtn.style.borderColor = 'var(--red)';
+    buyBtn.style.background = 'transparent';
+    buyBtn.style.color = 'var(--muted)';
+    buyBtn.style.borderColor = 'var(--border)';
+    execBtn.style.background = 'var(--red)';
+    execBtn.textContent = '▼ Execute SELL Signal';
+  } else {
+    buyBtn.style.background = 'var(--green)';
+    buyBtn.style.color = '#fff';
+    buyBtn.style.borderColor = 'var(--green)';
+    sellBtn.style.background = 'transparent';
+    sellBtn.style.color = 'var(--muted)';
+    sellBtn.style.borderColor = 'var(--border)';
+    execBtn.style.background = 'var(--green)';
+    execBtn.textContent = '▲ Execute BUY Signal';
+  }
+}
+
+function previewSignal() {
+  const entry = parseFloat(document.getElementById('sig-entry').value) || 0;
+  const sl    = parseFloat(document.getElementById('sig-sl').value) || 0;
+  const tp1   = parseFloat(document.getElementById('sig-tp1').value) || 0;
+  const tp2   = parseFloat(document.getElementById('sig-tp2').value) || 0;
+  if (!sl) { alert('SL wajib diisi'); return; }
+
+  const slDist  = Math.abs((entry || 0) - sl).toFixed(3);
+  const tp1Dist = tp1 ? Math.abs((entry || 0) - tp1).toFixed(3) : '-';
+  const tp2Dist = tp2 ? Math.abs((entry || 0) - tp2).toFixed(3) : '-';
+  const rr1 = tp1 && slDist > 0 ? '1:' + (Math.abs((entry||0)-tp1)/slDist).toFixed(1) : '-';
+  const rr2 = tp2 && slDist > 0 ? '1:' + (Math.abs((entry||0)-tp2)/slDist).toFixed(1) : '-';
+
+  document.getElementById('sig-prev-dir').textContent  = (_sigDir === 'SELL' ? '▼ SELL' : '▲ BUY');
+  document.getElementById('sig-prev-dir').style.color  = (_sigDir === 'SELL' ? 'var(--red)' : 'var(--green)');
+  document.getElementById('sig-prev-entry').textContent = entry || 'Market Price';
+  document.getElementById('sig-prev-sl').textContent   = sl + ' (dist: $' + slDist + ')';
+  document.getElementById('sig-prev-tp1').textContent  = tp1 ? tp1 + ' (' + rr1 + ')' : '-';
+  document.getElementById('sig-prev-tp2').textContent  = tp2 ? tp2 + ' (' + rr2 + ')' : '-';
+  document.getElementById('sig-prev-rr').textContent   = '$' + slDist + ' per lot';
+  document.getElementById('sig-preview').style.display = 'block';
+}
+
+async function executeSignal() {
+  const sl  = parseFloat(document.getElementById('sig-sl').value) || 0;
+  const tp1 = parseFloat(document.getElementById('sig-tp1').value) || 0;
+  const tp2 = parseFloat(document.getElementById('sig-tp2').value) || 0;
+  if (!sl) { alert('SL wajib diisi'); return; }
+  if (!tp2 && !tp1) { alert('Minimal isi TP1 atau TP2'); return; }
+
+  const payload = {
+    symbol:    document.getElementById('sig-symbol').value.trim() || 'XAUUSDm',
+    direction: _sigDir,
+    entry:     parseFloat(document.getElementById('sig-entry').value) || 0,
+    sl,
+    tp1:       tp1 || null,
+    tp2:       tp2 || null,
+    lot:       parseFloat(document.getElementById('sig-lot').value) || 0.01,
+  };
+
+  const confirm_msg = `Execute ${_sigDir}?\n\nSL: ${sl}\nTP1: ${tp1||'-'}\nTP2: ${tp2||'-'}\nLot: ${payload.lot}\n\nBot akan kirim order ke MT5.`;
+  if (!confirm(confirm_msg)) return;
+
+  const toast = document.getElementById('sig-toast');
+  toast.textContent = '⏳ Mengirim signal...';
+  toast.style.background = 'var(--blue)';
+  toast.style.color = '#fff';
+  toast.style.display = 'block';
+
+  try {
+    const res = await fetch('/signal/execute', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    }).then(r => r.json());
+
+    if (res.status === 'ok') {
+      toast.textContent = `✅ ${_sigDir} signal dikirim ke MT5`;
+      toast.style.background = 'var(--green)';
+      loadSignalActive();
+    } else {
+      toast.textContent = '❌ ' + (res.reason || 'Gagal');
+      toast.style.background = 'var(--red)';
+    }
+  } catch(e) {
+    toast.textContent = '❌ Tidak bisa konek ke server';
+    toast.style.background = 'var(--red)';
+  }
+  setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
+async function loadSignalActive() {
+  try {
+    const r = await fetch('/signal/active').then(r => r.json());
+    const el = document.getElementById('sig-active-list');
+    if (!r.signals || r.signals.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted)">Belum ada signal aktif</div>';
+      return;
+    }
+    el.innerHTML = r.signals.map(s => `
+      <div style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-weight:700;color:${s.direction==='SELL'?'var(--red)':'var(--green)'}">${s.direction === 'SELL' ? '▼' : '▲'} ${s.direction} ${s.symbol}</span>
+          <span style="font-size:10px;color:var(--muted)">${s.time}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:11px;color:var(--muted)">
+          <span>Entry: <b style="color:var(--fg)">${s.entry}</b></span>
+          <span>SL: <b style="color:var(--red)">${s.sl}</b></span>
+          <span>Lot: <b style="color:var(--fg)">${s.lot}</b></span>
+          <span>TP1: <b style="color:var(--green)">${s.tp1||'-'}</b></span>
+          <span>TP2: <b style="color:var(--green)">${s.tp2||'-'}</b></span>
+          <span style="color:${s.profit>=0?'var(--green)':'var(--red)'}">P&L: ${s.profit>=0?'+':''}${s.profit?.toFixed(2)||'0.00'}</span>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+setInterval(loadSignalActive, 5000);
 
 // ── Probability Page ─────────────────────────────────────────────────────────
 
