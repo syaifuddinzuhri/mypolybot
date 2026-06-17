@@ -101,11 +101,18 @@ tr:hover td{background:#1c2128}
 .sess-btn{background:var(--bg);border:2px solid var(--border);color:var(--muted);border-radius:10px;padding:12px 8px;font-size:13px;cursor:pointer;text-align:center;transition:all .2s;width:100%;line-height:1.6}
 .sess-btn.active{background:var(--blue-bg);border-color:var(--blue);color:var(--blue)}
 .sess-btn.warn{background:var(--yellow-bg);border-color:var(--yellow);color:var(--yellow)}
-.sess-tbl{width:100%;border-collapse:collapse;font-size:12px}
-.sess-tbl th{color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase}
-.sess-tbl td{padding:8px;border-bottom:1px solid var(--border2);vertical-align:middle}
-.sess-tbl tr:last-child td{border-bottom:none}
 .sess-now{font-size:11px;animation:pulse 2s infinite}
+/* Session recommendation cards — mobile first */
+.sess-rec{display:flex;flex-direction:column;gap:8px}
+.sess-rec-card{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px}
+.sess-rec-card.is-now{border-color:var(--blue);background:var(--blue-bg)}
+.sess-rec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.sess-rec-title{font-size:13px;font-weight:700}
+.sess-rec-wib{font-size:10px;color:var(--muted)}
+.sess-rec-meta{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:5px}
+.sess-rec-item{font-size:11px;color:var(--muted)}
+.sess-rec-item span{color:var(--text);font-weight:600}
+.sess-rec-tip{font-size:11px;color:var(--muted);line-height:1.5;padding-top:5px;border-top:1px solid var(--border2)}
 
 /* Position cards (mobile-friendly alternative to table) */
 .pos-card{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;margin-bottom:8px}
@@ -646,20 +653,27 @@ function renderSessionToggles(d) {
 function renderSessionTable(d) {
   const el = document.getElementById('session-table-content');
   const nowSessions = d.current_session_now || [];
-  let html = `<table class="sess-tbl">
-    <tr><th>Sesi</th><th>WIB</th><th>Spread</th><th>Kualitas</th></tr>`;
+  const spreadColor = {'skip':'var(--red)','optional':'var(--yellow)','best':'var(--green)','good':'var(--green)'};
+  let html = '<div class="sess-rec">';
   Object.entries(SESSION_INFO).forEach(([key, s]) => {
     const isNow = nowSessions.includes(key);
-    const rowStyle = isNow ? 'background:#1c2128' : '';
-    html += `<tr style="${rowStyle}">
-      <td><span style="font-weight:600">${s.icon} ${s.label}</span>${isNow ? ' <span class="badge badge-blue" style="font-size:9px">SEKARANG</span>' : ''}</td>
-      <td style="color:var(--muted)">${s.wib}</td>
-      <td style="color:${s.rec==='skip'?'var(--red)':s.rec==='optional'?'var(--yellow)':'var(--green)'}">${s.spread}</td>
-      <td>${s.quality}</td>
-    </tr>
-    <tr style="${rowStyle}"><td colspan="4" style="font-size:10px;color:var(--muted);padding:2px 8px 8px">${s.tip}</td></tr>`;
+    html += `
+      <div class="sess-rec-card${isNow?' is-now':''}">
+        <div class="sess-rec-header">
+          <span class="sess-rec-title">${s.icon} ${s.label}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${isNow ? '<span class="badge badge-blue" style="font-size:9px">● SEKARANG</span>' : ''}
+            <span style="font-size:11px;font-weight:700">${s.quality}</span>
+          </div>
+        </div>
+        <div class="sess-rec-meta">
+          <div class="sess-rec-item">Jam WIB <span>${s.wib}</span></div>
+          <div class="sess-rec-item">Spread <span style="color:${spreadColor[s.rec]}">${s.spread}</span></div>
+        </div>
+        <div class="sess-rec-tip">${s.tip}</div>
+      </div>`;
   });
-  html += '</table>';
+  html += '</div>';
   el.innerHTML = html;
 }
 
