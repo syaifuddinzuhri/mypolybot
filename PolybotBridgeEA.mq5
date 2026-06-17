@@ -383,68 +383,72 @@ void DrawFibHLine(string name, double price, string label, color clr, int style,
 }
 
 //+------------------------------------------------------------------+
-// EMA20 + EMA50 Lines
+// EMA50 High/Low Band (channel) — sesuai strategi bot
 //+------------------------------------------------------------------+
 void DrawEMALines()
 {
    int bars = 200;
-   double closes[];
-   if (CopyClose(g_symbol, PERIOD_CURRENT, 0, bars, closes) <= 0) return;
-   ArraySetAsSeries(closes, true);
+   double highs[], lows[];
+   if (CopyHigh(g_symbol, PERIOD_CURRENT, 0, bars, highs) <= 0) return;
+   if (CopyLow(g_symbol,  PERIOD_CURRENT, 0, bars, lows)  <= 0) return;
+   ArraySetAsSeries(highs, true);
+   ArraySetAsSeries(lows,  true);
 
-   int total = ArraySize(closes);
+   int total = ArraySize(highs);
 
-   // Hitung EMA
-   double ema20[], ema50[];
-   ArrayResize(ema20, total);
-   ArrayResize(ema50, total);
+   // EMA50 dari high (band atas) & EMA50 dari low (band bawah)
+   double bandH[], bandL[];
+   ArrayResize(bandH, total);
+   ArrayResize(bandL, total);
 
-   double k20 = 2.0 / (20 + 1);
-   double k50 = 2.0 / (50 + 1);
-   ema20[total-1] = closes[total-1];
-   ema50[total-1] = closes[total-1];
+   double k = 2.0 / (50 + 1);
+   bandH[total-1] = highs[total-1];
+   bandL[total-1] = lows[total-1];
    for (int i = total - 2; i >= 0; i--) {
-      ema20[i] = closes[i] * k20 + ema20[i+1] * (1 - k20);
-      ema50[i] = closes[i] * k50 + ema50[i+1] * (1 - k50);
+      bandH[i] = highs[i] * k + bandH[i+1] * (1 - k);
+      bandL[i] = lows[i]  * k + bandL[i+1] * (1 - k);
    }
 
-   // Gambar EMA sebagai titik-titik OBJ_TEXT kecil per candle
-   int step = 1;
-   for (int i = 0; i < MathMin(total, bars); i += step) {
-      datetime t = iTime(g_symbol, PERIOD_CURRENT, i);
+   // Gambar band sebagai garis bersambung (segmen OBJ_TREND antar candle)
+   int limit = MathMin(total, bars) - 1;
+   for (int i = 0; i < limit; i++) {
+      datetime t1 = iTime(g_symbol, PERIOD_CURRENT, i + 1);
+      datetime t2 = iTime(g_symbol, PERIOD_CURRENT, i);
 
-      string n20 = "PB_EMA20_" + IntegerToString(i);
-      ObjectCreate(0, n20, OBJ_TEXT, 0, t, ema20[i]);
-      ObjectSetString(0, n20, OBJPROP_TEXT, ".");
-      ObjectSetInteger(0, n20, OBJPROP_COLOR, InpEMAFastColor);
-      ObjectSetInteger(0, n20, OBJPROP_FONTSIZE, 6);
-      ObjectSetInteger(0, n20, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, n20, OBJPROP_BACK, true);
+      // Band atas
+      string nH = "PB_BANDH_" + IntegerToString(i);
+      ObjectCreate(0, nH, OBJ_TREND, 0, t1, bandH[i+1], t2, bandH[i]);
+      ObjectSetInteger(0, nH, OBJPROP_COLOR, InpEMAFastColor);
+      ObjectSetInteger(0, nH, OBJPROP_WIDTH, 2);
+      ObjectSetInteger(0, nH, OBJPROP_RAY_RIGHT, false);
+      ObjectSetInteger(0, nH, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nH, OBJPROP_BACK, true);
 
-      string n50 = "PB_EMA50_" + IntegerToString(i);
-      ObjectCreate(0, n50, OBJ_TEXT, 0, t, ema50[i]);
-      ObjectSetString(0, n50, OBJPROP_TEXT, ".");
-      ObjectSetInteger(0, n50, OBJPROP_COLOR, InpEMASlowColor);
-      ObjectSetInteger(0, n50, OBJPROP_FONTSIZE, 6);
-      ObjectSetInteger(0, n50, OBJPROP_SELECTABLE, false);
-      ObjectSetInteger(0, n50, OBJPROP_BACK, true);
+      // Band bawah
+      string nL = "PB_BANDL_" + IntegerToString(i);
+      ObjectCreate(0, nL, OBJ_TREND, 0, t1, bandL[i+1], t2, bandL[i]);
+      ObjectSetInteger(0, nL, OBJPROP_COLOR, InpEMASlowColor);
+      ObjectSetInteger(0, nL, OBJPROP_WIDTH, 2);
+      ObjectSetInteger(0, nL, OBJPROP_RAY_RIGHT, false);
+      ObjectSetInteger(0, nL, OBJPROP_SELECTABLE, false);
+      ObjectSetInteger(0, nL, OBJPROP_BACK, true);
    }
 
    // Label di candle terakhir
    datetime tNow = iTime(g_symbol, PERIOD_CURRENT, 0);
-   string lbl20 = "PB_EMA20_LBL";
-   ObjectCreate(0, lbl20, OBJ_TEXT, 0, tNow, ema20[0]);
-   ObjectSetString(0, lbl20, OBJPROP_TEXT, " EMA20");
-   ObjectSetInteger(0, lbl20, OBJPROP_COLOR, InpEMAFastColor);
-   ObjectSetInteger(0, lbl20, OBJPROP_FONTSIZE, 7);
-   ObjectSetInteger(0, lbl20, OBJPROP_SELECTABLE, false);
+   string lblH = "PB_BANDH_LBL";
+   ObjectCreate(0, lblH, OBJ_TEXT, 0, tNow, bandH[0]);
+   ObjectSetString(0, lblH, OBJPROP_TEXT, " EMA50 High");
+   ObjectSetInteger(0, lblH, OBJPROP_COLOR, InpEMAFastColor);
+   ObjectSetInteger(0, lblH, OBJPROP_FONTSIZE, 7);
+   ObjectSetInteger(0, lblH, OBJPROP_SELECTABLE, false);
 
-   string lbl50 = "PB_EMA50_LBL";
-   ObjectCreate(0, lbl50, OBJ_TEXT, 0, tNow, ema50[0]);
-   ObjectSetString(0, lbl50, OBJPROP_TEXT, " EMA50");
-   ObjectSetInteger(0, lbl50, OBJPROP_COLOR, InpEMASlowColor);
-   ObjectSetInteger(0, lbl50, OBJPROP_FONTSIZE, 7);
-   ObjectSetInteger(0, lbl50, OBJPROP_SELECTABLE, false);
+   string lblL = "PB_BANDL_LBL";
+   ObjectCreate(0, lblL, OBJ_TEXT, 0, tNow, bandL[0]);
+   ObjectSetString(0, lblL, OBJPROP_TEXT, " EMA50 Low");
+   ObjectSetInteger(0, lblL, OBJPROP_COLOR, InpEMASlowColor);
+   ObjectSetInteger(0, lblL, OBJPROP_FONTSIZE, 7);
+   ObjectSetInteger(0, lblL, OBJPROP_SELECTABLE, false);
 }
 
 //+------------------------------------------------------------------+
@@ -551,11 +555,12 @@ void DrawInfoLabel()
    ArraySetAsSeries(lows,   true);
 
    int total = ArraySize(closes);
-   double ema20 = closes[total-1], ema50 = closes[total-1];
-   double k20 = 2.0/(20+1), k50 = 2.0/(50+1);
+   // EMA50 band: bandH dari high, bandL dari low
+   double bandH = highs[total-1], bandL = lows[total-1];
+   double k = 2.0/(50+1);
    for (int i = total - 2; i >= 0; i--) {
-      ema20 = closes[i] * k20 + ema20 * (1 - k20);
-      ema50 = closes[i] * k50 + ema50 * (1 - k50);
+      bandH = highs[i] * k + bandH * (1 - k);
+      bandL = lows[i]  * k + bandL * (1 - k);
    }
 
    // ATR 14
@@ -569,12 +574,16 @@ void DrawInfoLabel()
    }
    atr /= atrPeriod;
 
-   string trend = (ema20 > ema50) ? "BUY ↑" : (ema20 < ema50) ? "SELL ↓" : "NEUTRAL";
-   color trendColor = (ema20 > ema50) ? clrLime : (ema20 < ema50) ? clrTomato : clrGray;
+   // Trend dari posisi candle terakhir close (index 1) terhadap band
+   double lastClose = closes[1];
+   string trend; color trendColor;
+   if (lastClose > bandH)      { trend = "BUY ↑ (di atas band)";  trendColor = clrLime; }
+   else if (lastClose < bandL) { trend = "SELL ↓ (di bawah band)"; trendColor = clrTomato; }
+   else                        { trend = "NETRAL (dalam band)";    trendColor = clrGray; }
 
    string infoText = StringFormat(
-      "Trend : %s\nEMA20 : %.3f\nEMA50 : %.3f\nATR   : %.3f",
-      trend, ema20, ema50, atr
+      "Trend     : %s\nEMA50 High: %.3f\nEMA50 Low : %.3f\nClose     : %.3f\nATR       : %.3f",
+      trend, bandH, bandL, lastClose, atr
    );
 
    string name = "PB_INFO_LABEL";

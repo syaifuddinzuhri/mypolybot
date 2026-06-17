@@ -305,8 +305,11 @@ async def ea_analysis(symbol: str = None):
         for i in range(1, len(arr)): e[i] = arr[i]*k + e[i-1]*(1-k)
         return e
 
-    ema20 = ema(closes, 20)[-1]
-    ema50 = ema(closes, 50)[-1]
+    # EMA50 High/Low band — sesuai strategi bot
+    band_high = ema(highs, 50)[-1]
+    band_low  = ema(lows, 50)[-1]
+    ema20 = band_high   # label dashboard: band atas
+    ema50 = band_low    # label dashboard: band bawah
 
     # ATR 14 — oldest to newest (bars dari EA urutan index 0=oldest)
     atr_vals = []
@@ -319,10 +322,11 @@ async def ea_analysis(symbol: str = None):
         atr_vals.append(tr)
     atr = float(np.mean(atr_vals)) if atr_vals else 0.0
 
-    # Trend
-    if ema20 > ema50:
+    # Trend dari EMA50 band: close terakhir di atas band atas = BUY, di bawah band bawah = SELL
+    last_close = float(closes[-1])
+    if last_close > band_high:
         trend = "BUY"
-    elif ema20 < ema50:
+    elif last_close < band_low:
         trend = "SELL"
     else:
         trend = "NEUTRAL"

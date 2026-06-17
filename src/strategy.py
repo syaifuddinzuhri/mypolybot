@@ -5,7 +5,6 @@ from typing import Optional, List
 
 from .types import RateBar, SRZone, TickData, Direction, TradeSignal
 from .config import settings
-from .fibonacci import check_fib_confluence
 
 
 # ── EMA ─────────────────────────────────────────────────────────────────────
@@ -19,66 +18,44 @@ def _ema(values: np.ndarray, period: int) -> np.ndarray:
     return ema
 
 
-# ── Trend Detection ──────────────────────────────────────────────────────────
+# ── EMA50 High/Low Band ──────────────────────────────────────────────────────
+
+def _ema_band(bars: List[RateBar], period: int) -> tuple[np.ndarray, np.ndarray]:
+    """EMA dari high & low → membentuk band (channel) dinamis."""
+    highs = np.array([b.high for b in bars])
+    lows = np.array([b.low for b in bars])
+    return _ema(highs, period), _ema(lows, period)
+
+
+# ── Trend Detection (EMA50 High/Low Band) ─────────────────────────────────────
 
 def detect_trend(bars: List[RateBar], point: float) -> Optional[Direction]:
     """
-    Deteksi trend dari EMA + majority candle.
-    BUY  → EMA20 > EMA50 DAN mayoritas 5 candle terakhir bullish
-    SELL → EMA20 < EMA50 DAN mayoritas 5 candle terakhir bearish
+    Trend dari EMA50 High/Low Band:
+      - Uptrend   → candle close DI ATAS band atas (EMA50 dari high)
+      - Downtrend → candle close DI BAWAH band bawah (EMA50 dari low)
+      - Di dalam band → netral, tidak ada trend
+
+    Dievaluasi pada candle terakhir yang SUDAH close (bars[-2]).
     """
-    if len(bars) < settings.ema_slow + 5:
+    period = settings.ema_slow
+    if len(bars) < period + 3:
         return None
 
-    closes = np.array([b.close for b in bars])
-    ema_fast = _ema(closes, settings.ema_fast)
-    ema_slow = _ema(closes, settings.ema_slow)
+    ema_high, ema_low = _ema_band(bars, period)
+    idx = -2  # candle terakhir yang sudah close
+    c = bars[idx].close
+    eh, el = ema_high[idx], ema_low[idx]
 
-    fast_last = ema_fast[-1]
-    slow_last = ema_slow[-1]
+    if c > eh:
+        logger.debug(f"[TREND] BUY — close {c:.3f} di atas band atas {eh:.3f}")
+        return Direction.BUY
+    if c < el:
+        logger.debug(f"[TREND] SELL — close {c:.3f} di bawah band bawah {el:.3f}")
+        return Direction.SELL
 
-    if fast_last > slow_last:
-        trend = Direction.BUY
-    elif fast_last < slow_last:
-        trend = Direction.SELL
-    else:
-        return None
-
-    # Filter 1: harga harus di sisi yang benar dari EMA fast
-    # BUY hanya jika harga belum terlalu jauh di bawah EMA (max 2x ATR)
-    last_close = bars[-1].close
-    if trend == Direction.BUY and last_close < fast_last - (200 * point):
-        logger.debug(f"[TREND] BUY skip — harga {last_close:.3f} terlalu jauh di bawah EMA {fast_last:.3f}")
-        return None
-    if trend == Direction.SELL and last_close > fast_last + (200 * point):
-        logger.debug(f"[TREND] SELL skip — harga {last_close:.3f} terlalu jauh di atas EMA {fast_last:.3f}")
-        return None
-
-    # Filter 2: momentum candle — jika 4/5 candle terakhir berlawanan arah, skip
-    recent = bars[-5:]
-    if trend == Direction.BUY:
-        bearish = sum(1 for b in recent if b.close < b.open)
-        if bearish >= 4:
-            logger.debug(f"[TREND] BUY skip — momentum bearish kuat ({bearish}/5 candle turun)")
-            return None
-    else:
-        bullish = sum(1 for b in recent if b.close > b.open)
-        if bullish >= 4:
-            logger.debug(f"[TREND] SELL skip — momentum bullish kuat ({bullish}/5 candle naik)")
-            return None
-
-    # Candle terakhir tidak boleh doji
-    last = bars[-1]
-    body = abs(last.close - last.open)
-    if body < settings.min_candle_body_points * point:
-        logger.debug(f"[TREND] Doji skip (body={body:.5f})")
-        return None
-
-    logger.debug(
-        f"[TREND] {trend.value} — EMA{settings.ema_fast}={fast_last:.3f} "
-        f"EMA{settings.ema_slow}={slow_last:.3f}"
-    )
-    return trend
+    logger.debug(f"[TREND] Netral — close {c:.3f} di dalam band [{el:.3f}, {eh:.3f}]")
+    return None
 
 
 # ── SR Zone Detection ────────────────────────────────────────────────────────
@@ -141,62 +118,6 @@ def _atr(bars: List[RateBar], period: int = 14) -> float:
     return float(np.mean(trs[-period:]))
 
 
-def _calculate_sl_tp(
-    direction: Direction,
-    entry: float,
-    zones: List[SRZone],
-    point: float,
-    bars: Optional[List[RateBar]] = None,
-) -> tuple[float, float]:
-    # SL minimum: 1.5× ATR (adaptif volatilitas), fallback 150 points
-    atr = _atr(bars) if bars else 0.0
-    atr_sl = atr * 1.5 if atr > 0 else 0.0
-    min_sl = max(atr_sl, 150 * point)
-
-    if direction == Direction.BUY:
-        sl = entry - min_sl
-        support_zones = sorted([z for z in zones if z.high < entry], key=lambda z: z.high, reverse=True)
-        if support_zones:
-            sl_candidate = support_zones[0].low - 10 * point
-            if entry - sl_candidate >= min_sl:
-                sl = sl_candidate
-
-        sl_dist = entry - sl
-        min_tp = sl_dist * settings.min_rr_ratio
-        tp = entry + min_tp
-
-        resist_zones = sorted([z for z in zones if z.low > entry], key=lambda z: z.low)
-        if resist_zones:
-            tp_candidate = resist_zones[0].low - 10 * point
-            if tp_candidate - entry >= min_tp:
-                tp = tp_candidate
-
-    else:
-        sl = entry + min_sl
-        resist_zones = sorted([z for z in zones if z.low > entry], key=lambda z: z.low)
-        if resist_zones:
-            sl_candidate = resist_zones[0].high + 10 * point
-            if sl_candidate - entry >= min_sl:
-                sl = sl_candidate
-
-        sl_dist = sl - entry
-        min_tp = sl_dist * settings.min_rr_ratio
-        tp = entry - min_tp
-
-        support_zones = sorted([z for z in zones if z.high < entry], key=lambda z: z.high, reverse=True)
-        if support_zones:
-            tp_candidate = support_zones[0].high + 10 * point
-            if entry - tp_candidate >= min_tp:
-                tp = tp_candidate
-
-    rr = round(abs(tp - entry) / abs(sl - entry), 2)
-    logger.debug(
-        f"[SL/TP] {direction.value} entry={entry:.3f} sl={round(sl,3)} tp={round(tp,3)} "
-        f"RR=1:{rr} | ATR={round(atr,3)} min_sl={round(min_sl/point)}pts"
-    )
-    return round(sl, 5), round(tp, 5)
-
-
 # ── Main Analyze ─────────────────────────────────────────────────────────────
 
 def analyze(
@@ -208,190 +129,81 @@ def analyze(
     direction: Direction,
 ) -> Optional[TradeSignal]:
     """
-    Entry hanya saat harga MENYENTUH zona SR yang tepat:
-    - BUY  → harga menyentuh zona SUPPORT dari atas (pullback ke support)
-    - SELL → harga menyentuh zona RESISTANCE dari bawah (pullback ke resistance)
+    Strategi EMA50 High/Low Band + Rejection Candle:
 
-    Threshold sangat ketat: harga harus benar-benar di dalam atau
-    sangat dekat zona (maks 150 points).
+    BUY  (uptrend, harga di atas band):
+      - candle pullback turun MENYENTUH band atas (low <= EMA50_high)
+      - lalu CLOSE balik di atas band (close > EMA50_high) — keluar dari EMA
+      - candle bullish dengan lower wick (rejection)
+    SELL (downtrend, harga di bawah band):
+      - candle pullback naik MENYENTUH band bawah (high >= EMA50_low)
+      - lalu CLOSE balik di bawah band (close < EMA50_low)
+      - candle bearish dengan upper wick (rejection)
+
+    SL di luar wick rejection, TP = RR (default 1:3 dari .env MIN_RR_RATIO).
     """
-    zones = _find_sr_zones(bars, point)
-    if not zones:
-        logger.debug(f"[NO TRADE][{symbol}] Tidak ada SR zone terdeteksi")
+    period = settings.ema_slow
+    if len(bars) < period + 3:
         return None
+
+    ema_high, ema_low = _ema_band(bars, period)
+
+    # Candle konfirmasi = candle terakhir yang SUDAH close
+    conf = bars[-2]
+    eh, el = ema_high[-2], ema_low[-2]
 
     price = tick.ask if direction == Direction.BUY else tick.bid
+    rr_target = settings.min_rr_ratio
+    atr = _atr(bars)
+    buffer = max(atr * 0.3, 30 * point)   # SL sedikit di luar wick
 
-    # Threshold ketat: harga harus menyentuh zona (bukan sekedar dekat)
-    touch_buffer = 150 * point  # 0.150 untuk XAUUSDm
-
-    min_strength = 2
-
-    def zone_valid_support(z: SRZone) -> tuple[bool, str]:
-        """
-        Kasus validitas zona SUPPORT (untuk BUY):
-
-        INVALID:
-          - Case 1: 2+ candle body close di bawah zone.low  → zona benar-benar ditembus
-          - Case 2: candle terakhir body close di bawah zone.low → baru saja ditembus
-          - Case 3: kurang dari 3/5 candle close di atas zone.low → tidak ada dukungan
-
-        VALID:
-          - Case 4: 5/5 atau 4/5 candle close di atas zone.low → holding bersih
-          - Case 5: ada wick yang tembus bawah tapi body tidak (false break) + 4/5 holding → recovery valid
-          - Case 6: 1 body tembus tapi candle terakhir sudah balik ke atas + 4/5 holding → recovery lemah
-        """
-        recent5 = bars[-5:]
-        last = bars[-1]
-
-        closes_above = sum(1 for b in recent5 if b.close >= z.low)
-        bodies_below = sum(1 for b in recent5 if b.close < z.low and b.open < z.low)
-        wicks_below  = sum(1 for b in recent5 if b.low < z.low)
-        last_body_below = last.close < z.low and last.open < z.low
-
-        # Case 1: multiple body break → benar-benar ditembus
-        if bodies_below >= 2:
-            return False, f"broken ({bodies_below} body close di bawah zona)"
-
-        # Case 2: candle terakhir body di bawah zona
-        if last_body_below:
-            return False, "broken (candle terakhir close di bawah zona)"
-
-        # Case 3: tidak cukup candle holding
-        if closes_above < 3:
-            return False, f"tidak cukup holding ({closes_above}/5 candle di atas zona)"
-
-        # Case 5: false break (hanya wick, body tidak tembus) → valid recovery
-        if wicks_below > 0 and bodies_below == 0 and closes_above >= 4:
-            return True, f"recovery — false break ({wicks_below}x wick saja, body holding)"
-
-        # Case 6: 1 body tembus tapi sudah balik + 4 dari 5 holding
-        if bodies_below == 1 and closes_above >= 4 and last.close >= z.low:
-            return True, "recovery — 1 body break lalu balik ke atas zona"
-
-        # Case 4: holding bersih
-        if closes_above >= 4:
-            return True, "holding bersih"
-
-        # holding lemah (3/5) — valid tapi catat
-        return True, f"holding lemah ({closes_above}/5)"
-
-    def zone_valid_resistance(z: SRZone) -> tuple[bool, str]:
-        """
-        Kasus validitas zona RESISTANCE (untuk SELL) — mirror dari support.
-        """
-        recent5 = bars[-5:]
-        last = bars[-1]
-
-        closes_below = sum(1 for b in recent5 if b.close <= z.high)
-        bodies_above = sum(1 for b in recent5 if b.close > z.high and b.open > z.high)
-        wicks_above  = sum(1 for b in recent5 if b.high > z.high)
-        last_body_above = last.close > z.high and last.open > z.high
-
-        if bodies_above >= 2:
-            return False, f"broken ({bodies_above} body close di atas zona)"
-        if last_body_above:
-            return False, "broken (candle terakhir close di atas zona)"
-        if closes_below < 3:
-            return False, f"tidak cukup holding ({closes_below}/5 candle di bawah zona)"
-        if wicks_above > 0 and bodies_above == 0 and closes_below >= 4:
-            return True, f"recovery — false break ({wicks_above}x wick saja, body holding)"
-        if bodies_above == 1 and closes_below >= 4 and last.close <= z.high:
-            return True, "recovery — 1 body break lalu balik ke bawah zona"
-        if closes_below >= 4:
-            return True, "holding bersih"
-        return True, f"holding lemah ({closes_below}/5)"
-
-    def zone_still_holding_support(z: SRZone) -> bool:
-        valid, reason = zone_valid_support(z)
-        if not valid:
-            logger.debug(f"[ZONE][{symbol}] Support [{z.low:.{digits}f},{z.high:.{digits}f}] INVALID — {reason}")
-        else:
-            logger.debug(f"[ZONE][{symbol}] Support [{z.low:.{digits}f},{z.high:.{digits}f}] valid — {reason}")
-        return valid
-
-    def zone_still_holding_resistance(z: SRZone) -> bool:
-        valid, reason = zone_valid_resistance(z)
-        if not valid:
-            logger.debug(f"[ZONE][{symbol}] Resistance [{z.low:.{digits}f},{z.high:.{digits}f}] INVALID — {reason}")
-        else:
-            logger.debug(f"[ZONE][{symbol}] Resistance [{z.low:.{digits}f},{z.high:.{digits}f}] valid — {reason}")
-        return valid
+    body = abs(conf.close - conf.open)
+    band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
     if direction == Direction.BUY:
-        target_zones = [
-            z for z in zones
-            if z.zone_type == "support"
-            and z.low <= price <= z.high + touch_buffer
-            and z.strength >= min_strength
-            and price >= z.low
-            and zone_still_holding_support(z)  # zona belum ditembus candle
-        ]
-        target_zones.sort(key=lambda z: abs(price - z.high))
+        touched    = conf.low <= eh            # menyentuh band atas (pullback)
+        closed_out = conf.close > eh           # close balik keluar (di atas band)
+        bullish    = conf.close > conf.open
+        lower_wick = min(conf.open, conf.close) - conf.low
+        rejection  = lower_wick >= body * 0.8 or lower_wick >= 50 * point
+
+        if not (touched and closed_out and bullish and rejection):
+            logger.info(
+                f"[NO TRADE][{symbol}] BUY belum konfirmasi band {band_str} — "
+                f"touch={touched} close_out={closed_out} bull={bullish} reject={rejection}"
+            )
+            return None
+
+        sl = conf.low - buffer
+        sl_dist = price - sl
+        if sl_dist <= 0:
+            logger.info(f"[NO TRADE][{symbol}] BUY SL invalid (harga sudah di bawah wick)")
+            return None
+        tp = price + sl_dist * rr_target
 
     else:  # SELL
-        target_zones = [
-            z for z in zones
-            if z.zone_type == "resistance"
-            and z.low - touch_buffer <= price <= z.high
-            and z.strength >= min_strength
-            and price <= z.high
-            and zone_still_holding_resistance(z)
-        ]
-        target_zones.sort(key=lambda z: abs(price - z.low))
+        touched    = conf.high >= el           # menyentuh band bawah (pullback)
+        closed_out = conf.close < el           # close balik keluar (di bawah band)
+        bearish    = conf.close < conf.open
+        upper_wick = conf.high - max(conf.open, conf.close)
+        rejection  = upper_wick >= body * 0.8 or upper_wick >= 50 * point
 
-    if not target_zones:
-        if direction == Direction.BUY:
-            all_support = sorted([z for z in zones if z.zone_type == "support"],
-                                  key=lambda z: z.high, reverse=True)
-            if all_support:
-                nearest = all_support[0]
-                dist = int((price - nearest.high) / point)
-                valid, reason = zone_valid_support(nearest)
-                if not valid:
-                    status = f"INVALID — {reason}"
-                elif dist > touch_buffer / point:
-                    status = f"harga {dist} pts di atas zona (belum menyentuh)"
-                else:
-                    status = f"touched tapi strength={nearest.strength} < min={min_strength}"
-                logger.info(f"[NO TRADE][{symbol}] Support [{nearest.low:.{digits}f},{nearest.high:.{digits}f}] — {status}")
-            else:
-                logger.info(f"[NO TRADE][{symbol}] Tidak ada support zone terdeteksi (BUY)")
-        else:
-            all_resist = sorted([z for z in zones if z.zone_type == "resistance"],
-                                 key=lambda z: z.low)
-            if all_resist:
-                nearest = all_resist[0]
-                dist = int((nearest.low - price) / point)
-                valid, reason = zone_valid_resistance(nearest)
-                if not valid:
-                    status = f"INVALID — {reason}"
-                elif dist > touch_buffer / point:
-                    status = f"harga {dist} pts di bawah zona (belum menyentuh)"
-                else:
-                    status = f"touched tapi strength={nearest.strength} < min={min_strength}"
-                logger.info(f"[NO TRADE][{symbol}] Resistance [{nearest.low:.{digits}f},{nearest.high:.{digits}f}] — {status}")
-            else:
-                logger.info(f"[NO TRADE][{symbol}] Tidak ada resistance zone terdeteksi (SELL)")
-        return None
+        if not (touched and closed_out and bearish and rejection):
+            logger.info(
+                f"[NO TRADE][{symbol}] SELL belum konfirmasi band {band_str} — "
+                f"touch={touched} close_out={closed_out} bear={bearish} reject={rejection}"
+            )
+            return None
 
-    hit_zone = target_zones[0]
-    zone_str = f"[{hit_zone.low:.{digits}f}, {hit_zone.high:.{digits}f}]"
+        sl = conf.high + buffer
+        sl_dist = sl - price
+        if sl_dist <= 0:
+            logger.info(f"[NO TRADE][{symbol}] SELL SL invalid (harga sudah di atas wick)")
+            return None
+        tp = price - sl_dist * rr_target
 
-    # ── Fibonacci — gunakan sebagai TP enhancement, bukan blocker entry ──
-    _, fib_tp, _ = check_fib_confluence(price, bars, direction, point, digits, symbol)
-
-    # Hitung SL/TP dari SR zone + ATR
-    sl, tp = _calculate_sl_tp(direction, price, zones, point, bars)
-
-    # Override TP dengan Fibonacci extension jika lebih baik (lebih jauh)
-    if fib_tp is not None:
-        if direction == Direction.BUY and fib_tp > tp:
-            logger.info(f"[FIB][{symbol}] TP dinaikkan ke Fib extension: {tp:.{digits}f} → {fib_tp:.{digits}f}")
-            tp = round(fib_tp, 5)
-        elif direction == Direction.SELL and fib_tp < tp:
-            logger.info(f"[FIB][{symbol}] TP diturunkan ke Fib extension: {tp:.{digits}f} → {fib_tp:.{digits}f}")
-            tp = round(fib_tp, 5)
+    sl, tp = round(sl, 5), round(tp, 5)
+    rr = round(abs(tp - price) / abs(sl - price), 2)
 
     signal = TradeSignal(
         symbol=symbol,
@@ -399,10 +211,10 @@ def analyze(
         lot=settings.lot_size,
         sl=sl,
         tp=tp,
-        comment=f"polybot_{direction.value.lower()}_{hit_zone.zone_type}_fib",
+        comment=f"polybot_{direction.value.lower()}_emaband",
     )
     logger.info(
         f"[SIGNAL][{symbol}] {direction.value} price={price:.{digits}f} "
-        f"zone={zone_str} sl={sl} tp={tp}"
+        f"band={band_str} SL={sl} TP={tp} RR=1:{rr} (SL dist={int(sl_dist/point)}pts)"
     )
     return signal

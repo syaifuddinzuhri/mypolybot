@@ -447,8 +447,11 @@ async function loadAnalysis() {
   const spreadCls = d.spread < 20 ? 'green' : d.spread < 40 ? 'yellow' : 'red';
   const spreadBadge = `<span class="${spreadCls}">${d.spread} pts</span>`;
 
-  const ema20Cls = d.ema20 > d.ema50 ? 'green' : 'red';
-  const ema50Cls = d.ema20 < d.ema50 ? 'green' : 'red';
+  // d.ema20 = band atas (EMA50 high), d.ema50 = band bawah (EMA50 low)
+  const aboveBand = d.price > d.ema20;
+  const belowBand = d.price < d.ema50;
+  const bandHCls = aboveBand ? 'green' : 'muted';
+  const bandLCls = belowBand ? 'red' : 'muted';
 
   const priceVsDayHigh = d.day_high ? Math.round((d.day_high - d.price) / (d.day_high - d.day_low) * 100) : null;
 
@@ -464,8 +467,8 @@ async function loadAnalysis() {
       </div>
     </div>
     ${row('Harga', `<span class="blue" style="font-weight:700">${d.price}</span>`, 'coin')}
-    ${row('EMA 20', `<span class="${ema20Cls}">${d.ema20}</span>`, 'trending-up')}
-    ${row('EMA 50', `<span class="${ema50Cls}">${d.ema50}</span>`, 'trending-up')}
+    ${row('Band Atas (EMA50 H)', `<span class="${bandHCls}">${d.ema20}</span>`, 'arrow-bar-up')}
+    ${row('Band Bawah (EMA50 L)', `<span class="${bandLCls}">${d.ema50}</span>`, 'arrow-bar-down')}
     ${row('Spread', spreadBadge, 'arrows-horizontal')}
     ${d.day_high ? row('Day High', `<span class="red">${d.day_high}</span>`, 'arrow-bar-up') : ''}
     ${d.day_low  ? row('Day Low',  `<span class="green">${d.day_low}</span>`,  'arrow-bar-down') : ''}
