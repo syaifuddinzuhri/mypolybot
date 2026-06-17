@@ -156,25 +156,26 @@ def analyze(
     """
     period = settings.ema_slow
 
-    # Gunakan M5 bars untuk entry jika tersedia, fallback ke M15
-    entry_bars = bars_entry if (bars_entry and len(bars_entry) >= period + 3) else bars
-    tf_label = "M5" if (bars_entry and len(bars_entry) >= period + 3) else "M15"
-
-    if len(entry_bars) < period + 3:
+    if len(bars) < period + 3:
         return None
 
-    ema_high, ema_low = _ema_band(entry_bars, period)
-
-    # Candle konfirmasi = candle terakhir yang SUDAH close (dari M5)
-    conf = entry_bars[-2]
+    # Band SELALU dari M15 — stabil, tidak noisy
+    ema_high, ema_low = _ema_band(bars, period)
     eh, el = ema_high[-2], ema_low[-2]
+
+    # Candle konfirmasi dari M5 jika tersedia, fallback ke M15
+    has_m5 = bars_entry and len(bars_entry) >= period + 3
+    entry_bars = bars_entry if has_m5 else bars
+    tf_label = "M5" if has_m5 else "M15"
+
+    conf = entry_bars[-2]
 
     price = tick.ask if direction == Direction.BUY else tick.bid
     rr_target = settings.min_rr_ratio
-    atr = _atr(entry_bars)
+    # ATR dari M15 untuk SL buffer yang lebih stabil
+    atr = _atr(bars)
     buffer = max(atr * 2.0, 4000 * point)   # SL 2x ATR di luar wick, min $4.00
 
-    body = abs(conf.close - conf.open)
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
     if direction == Direction.BUY:
