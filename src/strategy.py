@@ -172,7 +172,7 @@ def analyze(
     price = tick.ask if direction == Direction.BUY else tick.bid
     rr_target = settings.min_rr_ratio
     atr = _atr(entry_bars)
-    buffer = max(atr * 0.3, 300 * point)   # SL sedikit di luar wick (~$0.30 minimum)
+    buffer = max(atr * 1.0, 1500 * point)   # SL 1x ATR di luar wick, min $1.50
 
     body = abs(conf.close - conf.open)
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
