@@ -300,6 +300,60 @@ async def patch_config(updates: dict):
     return {"applied": applied, "rejected": rejected}
 
 
+@app.get("/ea/bars")
+async def ea_bars(symbol: str = None, limit: int = 100):
+    """OHLCV bars + EMA50 band untuk chart realtime."""
+    import numpy as np
+
+    sym = symbol or (list(_cache["symbols"].keys())[0] if _cache["symbols"] else None)
+    if not sym:
+        raise HTTPException(404, "No symbol data")
+
+    bars = _cache.get("bars", {}).get(sym, [])
+    meta = _cache["symbols"].get(sym)
+    tick = _cache["ticks"].get(sym)
+    if not bars or not meta:
+        raise HTTPException(404, "No bar data")
+
+    bars = bars[-limit:]
+
+    highs  = np.array([b.high  for b in bars])
+    lows   = np.array([b.low   for b in bars])
+
+    def ema(arr, p):
+        k, e = 2/(p+1), np.zeros_like(arr, dtype=float)
+        e[0] = arr[0]
+        for i in range(1, len(arr)):
+            e[i] = arr[i]*k + e[i-1]*(1-k)
+        return e
+
+    band_high = ema(highs, 50)
+    band_low  = ema(lows,  50)
+
+    candles = []
+    for i, b in enumerate(bars):
+        candles.append({
+            "time":  int(b.time) if hasattr(b, "time") and b.time else i,
+            "open":  round(b.open,  meta.digits),
+            "high":  round(b.high,  meta.digits),
+            "low":   round(b.low,   meta.digits),
+            "close": round(b.close, meta.digits),
+            "band_high": round(float(band_high[i]), meta.digits),
+            "band_low":  round(float(band_low[i]),  meta.digits),
+        })
+
+    spread = int((tick.ask - tick.bid) / meta.point) if tick else 0
+    price  = round(tick.bid, meta.digits) if tick else 0
+
+    return {
+        "symbol":  sym,
+        "digits":  meta.digits,
+        "candles": candles,
+        "price":   price,
+        "spread":  spread,
+    }
+
+
 @app.get("/logs/recent")
 async def logs_recent(n: int = 200):
     """Ambil N baris log terakhir."""
