@@ -157,6 +157,9 @@ tr:hover td{background:#1c2128}
   <button class="nav-btn" onclick="showPage('terminal')" id="tab-terminal">
     <i class="ti ti-terminal-2"></i> Log
   </button>
+  <button class="nav-btn" onclick="showPage('about')" id="tab-about">
+    <i class="ti ti-info-circle"></i> Tentang
+  </button>
 </nav>
 
 <!-- PAGE: LIVE -->
@@ -325,6 +328,166 @@ tr:hover td{background:#1c2128}
   <div class="card">
     <div class="card-title"><i class="ti ti-bulb"></i> Estimasi Hari Ini</div>
     <div id="prob-today"></div>
+  </div>
+
+</div>
+
+<!-- PAGE: ABOUT -->
+<div class="page" id="page-about">
+
+  <!-- Hero -->
+  <div class="card" style="border-color:var(--blue-bg);background:linear-gradient(135deg,#0d1117 60%,#1a2a3a);text-align:center;padding:20px">
+    <div style="font-size:32px;margin-bottom:6px">🤖</div>
+    <div style="font-size:20px;font-weight:800;color:var(--blue);letter-spacing:1px">POLYBOT</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">Automated Gold Trading Bot · XAUUSDm · MT5 Bridge</div>
+    <div style="display:flex;gap:6px;justify-content:center;margin-top:12px;flex-wrap:wrap">
+      <span class="badge badge-blue">EMA50 Band</span>
+      <span class="badge badge-green">RR 1:2</span>
+      <span class="badge badge-yellow">London + NY</span>
+      <span class="badge" style="background:var(--border2);color:var(--muted)">FastAPI · Python</span>
+      <span class="badge" style="background:var(--border2);color:var(--muted)">MQL5 EA</span>
+    </div>
+  </div>
+
+  <!-- Arsitektur -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-topology-star"></i> Arsitektur</div>
+    <div style="font-family:monospace;font-size:11px;color:var(--muted);line-height:2;background:var(--bg);padding:12px;border-radius:8px">
+      <span style="color:var(--blue)">MetaTrader 5 (EA)</span><br>
+      &nbsp;&nbsp;&nbsp;│ POST /ea/rates (setiap tick)<br>
+      &nbsp;&nbsp;&nbsp;▼<br>
+      <span style="color:var(--green)">FastAPI Bridge Server</span> ←→ <span style="color:var(--purple)">Dashboard (browser)</span><br>
+      &nbsp;&nbsp;&nbsp;│<br>
+      &nbsp;&nbsp;&nbsp;├── <span style="color:var(--text)">strategy.py</span> &nbsp;— EMA50 band + entry logic<br>
+      &nbsp;&nbsp;&nbsp;├── <span style="color:var(--text)">risk.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— spread, daily loss, cooldown<br>
+      &nbsp;&nbsp;&nbsp;├── <span style="color:var(--text)">trade_manager.py</span> — session, trailing SL, BE<br>
+      &nbsp;&nbsp;&nbsp;└── <span style="color:var(--text)">bot.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— orchestrator utama
+    </div>
+  </div>
+
+  <!-- Strategi -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-chart-candle"></i> Strategi: EMA50 High/Low Band</div>
+    <div class="row"><span class="row-label">Band Atas</span><span class="row-val" style="color:var(--blue)">EMA50 dari candle High</span></div>
+    <div class="row"><span class="row-label">Band Bawah</span><span class="row-val" style="color:var(--red)">EMA50 dari candle Low</span></div>
+    <div class="row"><span class="row-label">Deteksi Trend</span><span class="row-val">Majority vote 5 candle (min 3/5)</span></div>
+    <div class="row"><span class="row-label">Timeframe</span><span class="row-val">M15</span></div>
+
+    <div style="margin-top:12px;margin-bottom:6px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Setup Entry (2 per arah)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:var(--green-bg);border:1px solid var(--green);border-radius:8px;padding:10px">
+        <div style="font-weight:700;color:var(--green);margin-bottom:6px">▲ BUY</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          <b style="color:var(--text)">Breakout:</b><br>close &gt; Band Atas + bullish<br><br>
+          <b style="color:var(--text)">Pullback:</b><br>low menyentuh Band Atas + close di atas + bullish
+        </div>
+      </div>
+      <div style="background:var(--red-bg);border:1px solid var(--red);border-radius:8px;padding:10px">
+        <div style="font-weight:700;color:var(--red);margin-bottom:6px">▼ SELL</div>
+        <div style="font-size:11px;color:var(--muted);line-height:1.8">
+          <b style="color:var(--text)">Breakout:</b><br>close &lt; Band Bawah + bearish<br><br>
+          <b style="color:var(--text)">Pullback:</b><br>high menyentuh Band Atas + close di bawah + bearish
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);line-height:1.8">
+      <b style="color:var(--text)">SL</b> = ujung wick + buffer (max ATR×0.3, 30pts) &nbsp;|&nbsp;
+      <b style="color:var(--text)">TP</b> = SL × RR (default <span style="color:var(--yellow)">1:2</span>)<br>
+      Break-even win rate: <span style="color:var(--green);font-weight:700">34%</span> — cukup 1 dari 3 trade profit
+    </div>
+  </div>
+
+  <!-- Filter & Proteksi -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-shield-check"></i> Filter & Proteksi</div>
+    <div class="row"><span class="row-label"><i class="ti ti-wave-sine"></i> Spread</span><span class="row-val">≤ 50 pts (block Asia session)</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-clock"></i> Session</span><span class="row-val">Auto — London 14:00 + NY 20:00 WIB</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-trending-down"></i> Daily Loss</span><span class="row-val">Stop 3% dari balance (dinamis)</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-player-pause"></i> Cooldown</span><span class="row-val">2 loss berturut → pause 60 menit</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-layers-intersect"></i> Max Posisi</span><span class="row-val">1 per symbol</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-arrows-move"></i> Trailing SL</span><span class="row-val">150 pts mengikuti profit</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-equal"></i> Break Even</span><span class="row-val">Geser SL ke entry saat profit 80 pts</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-scissors"></i> Partial Close</span><span class="row-val">Tutup 50% posisi saat profit 120 pts</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-calendar-off"></i> EOD Close</span><span class="row-val">Tutup semua posisi 23:50 UTC</span></div>
+  </div>
+
+  <!-- Sesi Trading -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-world"></i> Sesi Trading XAUUSDm</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;opacity:.5">
+        <div style="font-size:11px;font-weight:700;color:var(--muted)">🌙 Asia</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">00:00 – 08:00 WIB</div>
+        <div style="font-size:10px;color:var(--red);margin-top:4px">Spread 200–400 pts</div>
+        <div class="badge badge-red" style="margin-top:6px;font-size:10px">❌ Diblok</div>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px;opacity:.6">
+        <div style="font-size:11px;font-weight:700;color:var(--yellow)">🌅 Pre-London</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">08:00 – 14:00 WIB</div>
+        <div style="font-size:10px;color:var(--yellow);margin-top:4px">Spread 100–280 pts</div>
+        <div class="badge badge-yellow" style="margin-top:6px;font-size:10px">⚠ Spread Lebar</div>
+      </div>
+      <div style="background:var(--green-bg);border:1px solid var(--green);border-radius:8px;padding:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--green)">🏙 London</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">14:00 – 20:00 WIB</div>
+        <div style="font-size:10px;color:var(--green);margin-top:4px">Spread 20–40 pts</div>
+        <div class="badge badge-green" style="margin-top:6px;font-size:10px">✅ Terbaik</div>
+      </div>
+      <div style="background:var(--blue-bg);border:1px solid var(--blue);border-radius:8px;padding:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--blue)">🗽 New York</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">20:00 – 24:00 WIB</div>
+        <div style="font-size:10px;color:var(--blue);margin-top:4px">Spread 20–40 pts</div>
+        <div class="badge badge-blue" style="margin-top:6px;font-size:10px">✅ Bagus</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Matematika RR -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-math"></i> Matematika RR 1:2</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="metric"><div class="metric-val" style="color:var(--yellow)">34%</div><div class="metric-label">Break-even</div></div>
+      <div class="metric"><div class="metric-val" style="color:var(--green)">1:2</div><div class="metric-label">Target RR</div></div>
+      <div class="metric"><div class="metric-val" style="color:var(--blue)">M15</div><div class="metric-label">Timeframe</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);line-height:2;background:var(--bg);padding:12px;border-radius:8px">
+      Contoh <span style="color:var(--text);font-weight:600">10 trade</span> dengan win rate 40%:<br>
+      <span style="color:var(--green)">▸ Win 4 trade × +200 pts = +800 pts</span><br>
+      <span style="color:var(--red)">▸ Loss 6 trade × −100 pts = −600 pts</span><br>
+      <span style="color:var(--text);font-weight:700">▸ Net = +200 pts PROFIT ✓</span>
+    </div>
+  </div>
+
+  <!-- File Penting -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-folder"></i> File Penting</div>
+    <div style="font-family:monospace;font-size:11px;line-height:2;background:var(--bg);padding:12px;border-radius:8px">
+      <span style="color:var(--yellow)">src/strategy.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— EMA50 band + entry logic<br>
+      <span style="color:var(--yellow)">src/risk.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— spread, daily loss, cooldown<br>
+      <span style="color:var(--yellow)">src/trade_manager.py</span> — session, trailing SL, BE, partial close<br>
+      <span style="color:var(--yellow)">src/bot.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— orchestrator: tick → analyze → order<br>
+      <span style="color:var(--yellow)">src/bridge_server.py</span> — FastAPI endpoints<br>
+      <span style="color:var(--yellow)">src/config.py</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— settings dari .env<br>
+      <span style="color:var(--blue)">PolybotBridgeEA_VPS.mq5</span> — EA untuk VPS/live<br>
+      <span style="color:var(--blue)">deploy/deploy.sh</span> &nbsp;&nbsp;&nbsp;— git pull + restart service<br>
+      <span style="color:var(--blue)">deploy/reset_data.sh</span> — backup + reset data trade
+    </div>
+  </div>
+
+  <!-- Changelog -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-git-commit"></i> Changelog</div>
+    <div id="about-changelog">
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Strategi SR Zone → EMA50 High/Low Band</span></div>
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Entry: 2 setup (breakout + pullback) per arah</span></div>
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Trend: majority vote 5 candle</span></div>
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Daily loss dinamis 3% dari balance</span></div>
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Tab Sesi: auto/manual toggle + 4 preset</span></div>
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Tab Probabilitas: countdown + statistik bot</span></div>
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Spread log throttle (1x per 60 detik)</span></div>
+      <div class="row"><span class="row-label" style="font-size:10px;color:var(--blue)">2026-06-17</span><span class="row-val" style="font-size:11px;text-align:right">Config extra=ignore agar .env lama tidak crash</span></div>
+    </div>
   </div>
 
 </div>
