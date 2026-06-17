@@ -145,6 +145,9 @@ tr:hover td{background:#1c2128}
   <button class="nav-btn" onclick="showPage('session')" id="tab-session">
     <i class="ti ti-clock"></i> Sesi
   </button>
+  <button class="nav-btn" onclick="showPage('probability')" id="tab-probability">
+    <i class="ti ti-chart-bar"></i> Probabilitas
+  </button>
   <button class="nav-btn" onclick="showPage('filter')" id="tab-filter">
     <i class="ti ti-filter"></i> Filter
   </button>
@@ -262,6 +265,35 @@ tr:hover td{background:#1c2128}
 
 </div>
 
+<!-- PAGE: PROBABILITAS -->
+<div class="page" id="page-probability">
+
+  <!-- Countdown ke sesi berikutnya -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-clock-countdown"></i> Sesi Berikutnya</div>
+    <div id="prob-session-status"></div>
+  </div>
+
+  <!-- Probabilitas per sesi (estimasi + aktual bot) -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-chart-bar"></i> Probabilitas per Sesi</div>
+    <div id="prob-sessions"></div>
+  </div>
+
+  <!-- Statistik aktual dari trade log bot -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-database"></i> Statistik Aktual Bot</div>
+    <div id="prob-stats"></div>
+  </div>
+
+  <!-- Estimasi setup hari ini -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-bulb"></i> Estimasi Hari Ini</div>
+    <div id="prob-today"></div>
+  </div>
+
+</div>
+
 <!-- PAGE: FILTER -->
 <div class="page" id="page-filter">
 
@@ -332,6 +364,9 @@ function showPage(name) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   document.getElementById('tab-'+name).classList.add('active');
+  if (name === 'probability') loadProbability();
+  if (name === 'session') loadSession();
+  if (name === 'filter') loadFilter();
 }
 
 // ── Live page ─────────────────────────────────────────────────────────────────
@@ -798,6 +833,191 @@ setInterval(refreshReport, 30000);
 setInterval(loadTrades, 15000);
 setInterval(loadFilter, 30000);
 setInterval(loadSession, 10000);
+setInterval(loadProbability, 30000);
+
+// ── Probability Page ─────────────────────────────────────────────────────────
+
+const SESSION_DATA = [
+  { key:'asia',       label:'Asia',       open:0,  close:8,  spreadOk:false, baseWin:28, baseSetup:20, color:'var(--muted)' },
+  { key:'pre_london', label:'Pre-London', open:8,  close:14, spreadOk:false, baseWin:30, baseSetup:30, color:'var(--yellow)' },
+  { key:'london',     label:'London',     open:14, close:20, spreadOk:true,  baseWin:40, baseSetup:55, color:'var(--green)' },
+  { key:'new_york',   label:'New York',   open:19, close:24, spreadOk:true,  baseWin:35, baseSetup:45, color:'var(--blue)' },
+];
+
+function getWIBHour() {
+  const now = new Date();
+  const wib = new Date(now.toLocaleString('en-US', {timeZone:'Asia/Jakarta'}));
+  return wib.getHours() + wib.getMinutes()/60;
+}
+
+function getCurrentSession() {
+  const h = getWIBHour();
+  return SESSION_DATA.find(s => h >= s.open && h < s.close) || null;
+}
+
+function getNextSession() {
+  const h = getWIBHour();
+  // sesi berikutnya yang belum mulai hari ini
+  const upcoming = SESSION_DATA.filter(s => s.open > h);
+  if (upcoming.length > 0) return upcoming[0];
+  // besok — sesi pertama
+  return SESSION_DATA[0];
+}
+
+function minsUntil(targetHourWIB) {
+  const now = new Date();
+  const wib = new Date(now.toLocaleString('en-US', {timeZone:'Asia/Jakarta'}));
+  let diffMin = (targetHourWIB - (wib.getHours() + wib.getMinutes()/60)) * 60;
+  if (diffMin < 0) diffMin += 24 * 60;
+  return Math.round(diffMin);
+}
+
+function fmtCountdown(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}j ${m}m` : `${m} menit`;
+}
+
+function probBar(pct, color) {
+  return `<div style="background:var(--border2);border-radius:4px;height:8px;margin-top:5px">
+    <div style="width:${pct}%;height:8px;border-radius:4px;background:${color};transition:width .4s"></div>
+  </div>`;
+}
+
+async function loadProbability() {
+  // ── Session status & countdown ────────────────────────────────────────────
+  const cur = getCurrentSession();
+  const next = getNextSession();
+  const minsLeft = cur ? minsUntil(cur.close) : 0;
+  const minsNext = minsUntil(next.open);
+
+  let ssHtml = '';
+  if (cur) {
+    ssHtml = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span class="dot" style="background:${cur.color}"></span>
+        <span style="font-weight:700;color:${cur.color}">${cur.label}</span>
+        <span class="badge ${cur.spreadOk ? 'badge-green' : 'badge-yellow'}">${cur.spreadOk ? 'Spread OK' : 'Spread Lebar'}</span>
+      </div>
+      <div class="row"><span class="row-label">Sisa waktu</span><span class="row-val">${fmtCountdown(minsLeft)}</span></div>
+      <div class="row"><span class="row-label">Sesi berikutnya</span><span class="row-val" style="color:${next.color}">${next.label} (dalam ${fmtCountdown(minsNext)})</span></div>
+    `;
+  } else {
+    ssHtml = `
+      <div class="row"><span class="row-label">Sesi aktif</span><span class="row-val badge badge-yellow">Di luar sesi</span></div>
+      <div class="row"><span class="row-label">Sesi berikutnya</span><span class="row-val" style="color:${next.color}">${next.label} (dalam ${fmtCountdown(minsNext)})</span></div>
+    `;
+  }
+  document.getElementById('prob-session-status').innerHTML = ssHtml;
+
+  // ── Per-session probability bars ─────────────────────────────────────────
+  let sessHtml = '';
+  const curH = getWIBHour();
+  for (const s of SESSION_DATA) {
+    const isActive = curH >= s.open && curH < s.close;
+    const isComing = s.open > curH;
+    const statusBadge = isActive
+      ? `<span class="badge badge-green">Aktif</span>`
+      : isComing
+        ? `<span class="badge badge-blue">Dalam ${fmtCountdown(minsUntil(s.open))}</span>`
+        : `<span class="badge" style="background:var(--border2);color:var(--muted)">Selesai</span>`;
+
+    sessHtml += `
+      <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:700;color:${s.color}">${s.label}</span>
+          <div style="display:flex;gap:6px;align-items:center">${statusBadge}
+            <span style="color:var(--muted);font-size:11px">${String(s.open).padStart(2,'0')}:00–${String(s.close).padStart(2,'0')}:00 WIB</span>
+          </div>
+        </div>
+        <div class="row" style="padding:3px 0;border:none">
+          <span style="color:var(--muted);font-size:11px">Peluang setup terbentuk</span>
+          <span style="font-weight:700;color:${s.color}">${s.baseSetup}%</span>
+        </div>
+        ${probBar(s.baseSetup, s.color)}
+        <div class="row" style="padding:3px 0;border:none;margin-top:6px">
+          <span style="color:var(--muted);font-size:11px">Peluang TP tercapai (dari setup)</span>
+          <span style="font-weight:700;color:${s.color}">${s.baseWin}%</span>
+        </div>
+        ${probBar(s.baseWin, s.color)}
+        <div style="margin-top:6px;font-size:10px;color:var(--muted)">
+          ${s.spreadOk ? '✓ Spread normal saat London/NY' : '⚠ Spread biasanya lebar — bot mungkin diblok'}
+        </div>
+      </div>
+    `;
+  }
+  document.getElementById('prob-sessions').innerHTML = sessHtml;
+
+  // ── Statistik aktual dari trade log ──────────────────────────────────────
+  try {
+    const trades = await fetch('/report/trades').then(r => r.json());
+    const total = trades.length;
+    if (total === 0) {
+      document.getElementById('prob-stats').innerHTML =
+        '<div class="empty">Belum ada data trade</div>';
+    } else {
+      const wins   = trades.filter(t => (t.profit || 0) > 0).length;
+      const losses = trades.filter(t => (t.profit || 0) < 0).length;
+      const winRate = ((wins / total) * 100).toFixed(1);
+      const totalProfit = trades.reduce((s, t) => s + (t.profit || 0), 0);
+      const avgWin  = wins  ? trades.filter(t=>t.profit>0).reduce((s,t)=>s+t.profit,0)/wins  : 0;
+      const avgLoss = losses? trades.filter(t=>t.profit<0).reduce((s,t)=>s+t.profit,0)/losses: 0;
+      const rr = avgLoss !== 0 ? (avgWin / Math.abs(avgLoss)).toFixed(2) : '–';
+      const breakeven = (1 / (1 + parseFloat(rr || 2))*100).toFixed(0);
+      const winColor = parseFloat(winRate) >= 40 ? 'var(--green)' : parseFloat(winRate) >= 30 ? 'var(--yellow)' : 'var(--red)';
+
+      document.getElementById('prob-stats').innerHTML = `
+        <div class="metric-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:10px">
+          <div class="metric"><div class="metric-val" style="color:${winColor}">${winRate}%</div><div class="metric-label">Win Rate</div></div>
+          <div class="metric"><div class="metric-val">${total}</div><div class="metric-label">Total Trade</div></div>
+          <div class="metric"><div class="metric-val" style="color:${totalProfit>=0?'var(--green)':'var(--red)'}">${totalProfit>=0?'+':''}${totalProfit.toFixed(0)}</div><div class="metric-label">Total P&L</div></div>
+        </div>
+        <div class="row"><span class="row-label">Win / Loss</span><span class="row-val"><span style="color:var(--green)">${wins}W</span> / <span style="color:var(--red)">${losses}L</span></span></div>
+        <div class="row"><span class="row-label">Avg Win</span><span class="row-val" style="color:var(--green)">+${avgWin.toFixed(2)}</span></div>
+        <div class="row"><span class="row-label">Avg Loss</span><span class="row-val" style="color:var(--red)">${avgLoss.toFixed(2)}</span></div>
+        <div class="row"><span class="row-label">RR Aktual</span><span class="row-val">1:${rr}</span></div>
+        <div class="row"><span class="row-label">Break-even win rate</span><span class="row-val">${breakeven}%</span></div>
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px">
+            <span>Win Rate saat ini</span><span style="color:${winColor}">${winRate}%</span>
+          </div>
+          ${probBar(parseFloat(winRate), winColor)}
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px">
+            <span>Break-even: ${breakeven}%</span>
+            <span>${parseFloat(winRate) >= parseFloat(breakeven) ? '✓ Profitable' : '⚠ Perlu improve'}</span>
+          </div>
+        </div>
+      `;
+    }
+  } catch(e) {
+    document.getElementById('prob-stats').innerHTML = '<div class="empty">Gagal load trade data</div>';
+  }
+
+  // ── Estimasi hari ini ─────────────────────────────────────────────────────
+  const wibH = getWIBHour();
+  const remaining = SESSION_DATA.filter(s => s.open > wibH && s.spreadOk);
+  const totalSetupChance = remaining.length > 0
+    ? Math.round(100 - remaining.reduce((acc, s) => acc * (1 - s.baseSetup/100), 1) * 100)
+    : 0;
+
+  let todayHtml = '';
+  if (remaining.length === 0) {
+    todayHtml = `<div class="empty" style="color:var(--muted)">Sesi London/NY sudah selesai hari ini. Tunggu besok 14:00 WIB.</div>`;
+  } else {
+    todayHtml = `
+      <div class="row"><span class="row-label">Sesi tersisa hari ini</span><span class="row-val">${remaining.map(s=>`<span style="color:${s.color}">${s.label}</span>`).join(', ')}</span></div>
+      <div class="row"><span class="row-label">Peluang ada ≥1 setup</span><span class="row-val" style="color:var(--green)">${totalSetupChance}%</span></div>
+      <div style="margin-top:10px">${probBar(totalSetupChance, 'var(--green)')}</div>
+      <div style="margin-top:10px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;line-height:1.7;color:var(--muted)">
+        <div style="color:var(--text);font-weight:600;margin-bottom:6px">Matematika RR 1:2</div>
+        Dengan RR 1:2, break-even hanya butuh <span style="color:var(--yellow)">34% win rate</span>.<br>
+        Dari 3 trade, cukup <span style="color:var(--green)">1 trade profit</span> untuk tidak rugi.<br>
+        Fokus ke <span style="color:var(--blue)">kualitas setup</span>, bukan frekuensi entry.
+      </div>
+    `;
+  }
+  document.getElementById('prob-today').innerHTML = todayHtml;
+}
 
 // ── Terminal / Log ────────────────────────────────────────────────────────────
 let termPaused = false;
