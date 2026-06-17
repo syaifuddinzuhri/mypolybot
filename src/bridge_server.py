@@ -231,6 +231,7 @@ class SessionConfigRequest(BaseModel):
     sessions: Optional[list] = None
     open_wib: Optional[int] = None
     close_wib: Optional[int] = None
+    auto_mode: Optional[bool] = None
 
 @app.post("/session/config")
 async def session_config_set(req: SessionConfigRequest):
@@ -240,6 +241,7 @@ async def session_config_set(req: SessionConfigRequest):
         sessions=req.sessions,
         open_wib=req.open_wib,
         close_wib=req.close_wib,
+        auto_mode=req.auto_mode,
     )
     logger.info(f"[SESSION] Config diubah via dashboard: {req.model_dump(exclude_none=True)}")
     from .trade_manager import get_session_config

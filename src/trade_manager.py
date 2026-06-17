@@ -17,10 +17,11 @@ from .config import settings
 
 # Runtime session override — bisa diubah dari dashboard tanpa restart
 _session_runtime: dict = {
-    "enabled": None,      # None = ikut .env
+    "enabled": None,          # None = ikut .env
     "open_wib": None,
     "close_wib": None,
-    "active_sessions": [], # ["asia","pre_london","london","new_york"]
+    "active_sessions": [],    # [] = auto-detect dari jam sekarang
+    "auto_mode": True,        # True = otomatis pilih sesi aktif sekarang
 }
 
 SESSION_PRESETS = {
@@ -30,31 +31,52 @@ SESSION_PRESETS = {
     "new_york":   {"label": "New York",    "open_wib": 19, "close_wib": 24, "spread_warn": False},
 }
 
+def _get_current_sessions(wib_hour: int) -> List[str]:
+    """Sesi apa yang sedang berjalan sekarang berdasarkan jam WIB."""
+    return [k for k, p in SESSION_PRESETS.items()
+            if p["open_wib"] <= wib_hour < p["close_wib"]]
+
+def _get_recommended_sessions(wib_hour: int) -> List[str]:
+    """Sesi yang direkomendasikan untuk trading (skip Asia)."""
+    active = _get_current_sessions(wib_hour)
+    # Asia tidak direkomendasikan — spread terlalu lebar
+    return [s for s in active if s != "asia"]
+
 def get_session_config() -> dict:
     wib_hour = (datetime.now(timezone.utc).hour + 7) % 24
-    active = []
-    for key, p in SESSION_PRESETS.items():
-        if p["open_wib"] <= wib_hour < p["close_wib"]:
-            active.append(key)
+    current_sessions = _get_current_sessions(wib_hour)
     enabled = _session_runtime["enabled"]
     if enabled is None:
         enabled = settings.session_filter_enabled
+    auto_mode = _session_runtime["auto_mode"]
+
+    # Jika auto mode: pakai sesi yang sedang aktif sekarang (tanpa Asia)
+    if auto_mode:
+        active_sessions = _get_recommended_sessions(wib_hour)
+    else:
+        active_sessions = _session_runtime["active_sessions"]
+
     return {
         "enabled": enabled,
+        "auto_mode": auto_mode,
         "open_wib": _session_runtime["open_wib"] or settings.session_open_hour,
         "close_wib": _session_runtime["close_wib"] or settings.session_close_hour,
-        "active_sessions": _session_runtime["active_sessions"],
+        "active_sessions": active_sessions,
         "current_wib_hour": wib_hour,
-        "current_session_now": active,
+        "current_session_now": current_sessions,
         "presets": SESSION_PRESETS,
     }
 
 def set_session_config(enabled: bool = None, sessions: list = None,
-                       open_wib: int = None, close_wib: int = None):
+                       open_wib: int = None, close_wib: int = None,
+                       auto_mode: bool = None):
     if enabled is not None:
         _session_runtime["enabled"] = enabled
+    if auto_mode is not None:
+        _session_runtime["auto_mode"] = auto_mode
     if sessions is not None:
         _session_runtime["active_sessions"] = sessions
+        _session_runtime["auto_mode"] = False  # manual override → matikan auto
         if sessions:
             opens  = [SESSION_PRESETS[s]["open_wib"]  for s in sessions if s in SESSION_PRESETS]
             closes = [SESSION_PRESETS[s]["close_wib"] for s in sessions if s in SESSION_PRESETS]
@@ -75,10 +97,19 @@ def is_trading_session() -> bool:
         return True
 
     wib_hour = (datetime.now(timezone.utc).hour + 7) % 24
-    open_wib  = _session_runtime["open_wib"]  or settings.session_open_hour
-    close_wib = _session_runtime["close_wib"] or settings.session_close_hour
+    auto = _session_runtime["auto_mode"]
 
-    # Jika ada sesi aktif spesifik, cek salah satunya
+    if auto:
+        # Auto: izinkan semua sesi kecuali Asia (spread terlalu lebar)
+        recommended = _get_recommended_sessions(wib_hour)
+        if not recommended:
+            logger.debug(f"[SESSION] Auto — Sesi Asia (WIB {wib_hour:02d}:xx), skip entry")
+            return False
+        names = ", ".join(SESSION_PRESETS[s]["label"] for s in recommended)
+        logger.debug(f"[SESSION] Auto — Sesi aktif: {names}")
+        return True
+
+    # Manual: cek sesi yang dipilih user
     active = _session_runtime["active_sessions"]
     if active:
         in_any = any(
@@ -87,12 +118,14 @@ def is_trading_session() -> bool:
         )
         if not in_any:
             names = ", ".join(SESSION_PRESETS[s]["label"] for s in active if s in SESSION_PRESETS)
-            logger.debug(f"[SESSION] Di luar sesi aktif ({names}) — WIB={wib_hour:02d}:xx")
+            logger.debug(f"[SESSION] Di luar sesi pilihan ({names}) — WIB={wib_hour:02d}:xx")
         return in_any
 
+    open_wib  = _session_runtime["open_wib"]  or settings.session_open_hour
+    close_wib = _session_runtime["close_wib"] or settings.session_close_hour
     in_session = open_wib <= wib_hour < close_wib
     if not in_session:
-        logger.debug(f"[SESSION] Di luar sesi {open_wib:02d}:00-{close_wib:02d}:00 WIB (sekarang {wib_hour:02d}:xx WIB)")
+        logger.debug(f"[SESSION] Di luar sesi {open_wib:02d}:00-{close_wib:02d}:00 WIB")
     return in_session
 
 

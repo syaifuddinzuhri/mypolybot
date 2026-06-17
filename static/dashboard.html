@@ -219,20 +219,24 @@ tr:hover td{background:#1c2128}
     <div class="card-title"><i class="ti ti-toggle-right"></i> Session Filter</div>
     <div id="session-master-content">
       <div class="row">
-        <span class="row-label"><i class="ti ti-clock"></i> Filter Sesi Aktif</span>
+        <span class="row-label"><i class="ti ti-clock"></i> Filter Sesi</span>
         <span class="row-val">
           <button id="btn-session-toggle" onclick="toggleSessionFilter()" class="tf-btn">...</button>
         </span>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">
-        Jika OFF — bot trade 24 jam (spread filter tetap aktif sebagai penjaga).
+      <div class="row">
+        <span class="row-label"><i class="ti ti-robot"></i> Mode Auto</span>
+        <span class="row-val">
+          <button id="btn-auto-toggle" onclick="toggleAutoMode()" class="tf-btn">...</button>
+        </span>
       </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px" id="session-mode-hint"></div>
     </div>
   </div>
 
-  <!-- Pilih sesi -->
-  <div class="card">
-    <div class="card-title"><i class="ti ti-adjustments"></i> Pilih Sesi Trading</div>
+  <!-- Pilih sesi manual -->
+  <div id="session-manual-section" class="card">
+    <div class="card-title"><i class="ti ti-adjustments"></i> Pilih Sesi Manual</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px" id="session-toggles">
       <button onclick="toggleSession('asia')"       id="sess-asia"       class="sess-btn">🌏 Asia<br><span style="font-size:10px;color:var(--muted)">00:00–08:00 WIB</span></button>
       <button onclick="toggleSession('pre_london')" id="sess-pre_london" class="sess-btn">🌅 Pre-London<br><span style="font-size:10px;color:var(--muted)">08:00–14:00 WIB</span></button>
@@ -626,13 +630,38 @@ async function loadSession() {
 
 function renderSessionMaster(d) {
   const btn = document.getElementById('btn-session-toggle');
+  const btnAuto = document.getElementById('btn-auto-toggle');
+  const hint = document.getElementById('session-mode-hint');
+  const manualSection = document.getElementById('session-manual-section');
+
   if (d.enabled) {
-    btn.textContent = 'ON — Filter Aktif';
-    btn.className = 'tf-btn tf-active';
+    btn.textContent = 'ON'; btn.className = 'tf-btn tf-active';
   } else {
-    btn.textContent = 'OFF — Trade 24 Jam';
-    btn.className = 'tf-btn';
+    btn.textContent = 'OFF'; btn.className = 'tf-btn';
   }
+
+  if (d.auto_mode) {
+    btnAuto.textContent = 'AUTO'; btnAuto.className = 'tf-btn tf-active';
+    const nowNames = (d.current_session_now||[]).filter(s=>s!=='asia')
+      .map(s=>SESSION_INFO[s]?.icon+' '+SESSION_INFO[s]?.label).join(', ');
+    hint.innerHTML = d.auto_mode
+      ? `<span class="green">Auto aktif</span> — bot mengikuti sesi yang berjalan sekarang${nowNames?' (<b>'+nowNames+'</b>)':' (Asia dilewati)'}.<br>Sesi Asia diblokir otomatis (spread lebar).`
+      : '';
+    manualSection.style.display = 'none';
+  } else {
+    btnAuto.textContent = 'MANUAL'; btnAuto.className = 'tf-btn';
+    hint.innerHTML = '<span class="yellow">Mode manual</span> — pilih sesi di bawah lalu terapkan.';
+    manualSection.style.display = 'block';
+  }
+}
+
+async function toggleAutoMode() {
+  const newAuto = !_sessionState.auto_mode;
+  await fetch('/session/config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ auto_mode: newAuto, enabled: true })
+  });
+  await loadSession();
 }
 
 function renderSessionToggles(d) {

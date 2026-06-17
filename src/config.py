@@ -70,8 +70,9 @@ class Settings(BaseSettings):
 
     # Session Filter
     session_filter_enabled: bool = True
-    session_open_hour: int = 7
-    session_close_hour: int = 21
+    session_open_hour: int = 14
+    session_close_hour: int = 20
+    session_auto: bool = True   # otomatis pilih sesi berdasarkan jam WIB sekarang
 
     # News Filter — Economic Calendar (ForexFactory)
     news_filter_enabled: bool = True
