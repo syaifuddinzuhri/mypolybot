@@ -197,7 +197,9 @@ def analyze(
         if sl_dist <= 0:
             logger.info(f"[NO TRADE][{symbol}] BUY SL invalid ({entry_type})")
             return None
-        tp = price + sl_dist * rr_target
+        tp1 = round(price + sl_dist * settings.tp1_rr, digits)
+        tp2 = round(price + sl_dist * settings.tp2_rr, digits)
+        tp  = round(price + sl_dist * rr_target, digits)
 
     else:  # SELL
         # Skenario A: Breakout — close di bawah lower band (trend sudah konfirmasi dari detect_trend)
@@ -220,9 +222,11 @@ def analyze(
         if sl_dist <= 0:
             logger.info(f"[NO TRADE][{symbol}] SELL SL invalid ({entry_type})")
             return None
-        tp = price - sl_dist * rr_target
+        tp1 = round(price - sl_dist * settings.tp1_rr, digits)
+        tp2 = round(price - sl_dist * settings.tp2_rr, digits)
+        tp  = round(price - sl_dist * rr_target, digits)
 
-    sl, tp = round(sl, 5), round(tp, 5)
+    sl = round(sl, digits)
     rr = round(abs(tp - price) / abs(sl - price), 2)
 
     signal = TradeSignal(
@@ -231,10 +235,12 @@ def analyze(
         lot=settings.lot_size,
         sl=sl,
         tp=tp,
+        tp1=tp1,
+        tp2=tp2,
         comment=f"polybot_{direction.value.lower()}_{entry_type}",
     )
     logger.info(
         f"[SIGNAL][{symbol}] {direction.value} [{entry_type}] [{tf_label}] price={price:.{digits}f} "
-        f"band={band_str} SL={sl} TP={tp} RR=1:{rr} (SL dist={int(sl_dist/point)}pts)"
+        f"band={band_str} SL={sl} TP1={tp1} TP2={tp2} TP3={tp} RR=1:{rr} (SL dist={int(sl_dist/point)}pts)"
     )
     return signal

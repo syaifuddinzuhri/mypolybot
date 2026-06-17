@@ -65,19 +65,28 @@ def notify_startup(symbol: str):
 
 def notify_entry(symbol: str, direction: str, price: float, sl: float,
                  tp: float, lot: float, sl_pts: int, tp_pts: int,
-                 entry_type: str = ""):
-    icon = "🟢" if direction == "BUY" else "🔴"
-    arrow = "▲" if direction == "BUY" else "▼"
+                 entry_type: str = "",
+                 tp1: float = 0.0, tp2: float = 0.0,
+                 price_high: float = 0.0):
+    dir_label = "Buy Now" if direction == "BUY" else "Sell Now"
+    icon = "✅"
+    # Entry range: price ± spread (tampilkan low-high)
+    p_lo = min(price, price_high) if price_high else price
+    p_hi = max(price, price_high) if price_high else price
+    entry_str = f"@{p_lo:.3f}-{p_hi:.3f}" if price_high else f"@{price:.3f}"
     tag = f" <i>({entry_type})</i>" if entry_type else ""
-    send(
-        f"{icon} <b>{arrow} {direction} {symbol}</b>{tag}\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"💰 Entry : <code>{price}</code>\n"
-        f"🛑 SL    : <code>{sl}</code>  <i>(-{sl_pts} pts)</i>\n"
-        f"🎯 TP    : <code>{tp}</code>  <i>(+{tp_pts} pts)</i>\n"
-        f"📦 Lot   : {lot}\n"
-        f"⏰ {_now_wib()}"
-    )
+
+    lines = [
+        f"{icon} <b>{symbol} {dir_label}</b> {entry_str}{tag}",
+        f"🚫 StopLose  : <code>{sl}</code>  <i>(-{sl_pts} pts)</i>",
+    ]
+    if tp1:
+        lines.append(f"🔵 TakeProfit 1 : <code>{tp1}</code>")
+    if tp2:
+        lines.append(f"🔵 TakeProfit 2 : <code>{tp2}</code>")
+    lines.append(f"🎯 TakeProfit 3 : <code>{tp}</code>  <i>(+{tp_pts} pts)</i>")
+    lines.append(f"📦 Lot : {lot}  |  ⏰ {_now_wib()}")
+    send("\n".join(lines))
 
 
 def notify_close(symbol: str, direction: str, profit: float,

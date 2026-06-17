@@ -249,6 +249,8 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
     sl_pts = int(abs(entry_price - signal.sl) / point) if point else 0
     tp_pts = int(abs(signal.tp - entry_price) / point) if point else 0
     entry_type = "breakout" if "breakout" in signal.comment else "pullback"
+    tick_now = _state["ticks"].get(symbol)
+    price_high = tick_now.ask if (tick_now and signal.direction.value == "BUY") else (tick_now.bid if tick_now else 0.0)
     notify_entry(
         symbol=symbol,
         direction=signal.direction.value,
@@ -259,6 +261,9 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
         sl_pts=sl_pts,
         tp_pts=tp_pts,
         entry_type=entry_type,
+        tp1=signal.tp1,
+        tp2=signal.tp2,
+        price_high=round(price_high, digits),
     )
 
 

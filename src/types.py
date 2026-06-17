@@ -15,6 +15,8 @@ class TradeSignal(BaseModel):
     lot: float
     sl: float
     tp: float
+    tp1: float = 0.0   # TP pertama (1:1 RR) — SL geser ke BE
+    tp2: float = 0.0   # TP kedua (1:2 RR) — lock profit
     comment: str = ""
 
 
