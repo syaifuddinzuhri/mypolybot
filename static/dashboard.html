@@ -361,10 +361,14 @@ tr:hover td{background:#1c2128}
 
   <!-- Toolbar -->
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-    <div id="chart-symbol" style="font-weight:700;color:var(--blue);font-size:13px">–</div>
+    <div>
+      <span id="chart-symbol" style="font-weight:700;color:var(--blue);font-size:13px">–</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:4px">M15</span>
+    </div>
     <div id="chart-price"  style="font-weight:700;font-size:15px">–</div>
     <div id="chart-spread" style="font-size:11px;color:var(--muted)">spread –</div>
-    <div style="margin-left:auto;display:flex;gap:6px">
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+      <span style="font-size:10px;color:var(--muted)">Candle:</span>
       <button class="chart-tf-btn active" onclick="setChartLimit(50,this)">50</button>
       <button class="chart-tf-btn" onclick="setChartLimit(100,this)">100</button>
       <button class="chart-tf-btn" onclick="setChartLimit(200,this)">200</button>
