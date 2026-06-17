@@ -129,18 +129,16 @@ def analyze(
     direction: Direction,
 ) -> Optional[TradeSignal]:
     """
-    Strategi EMA50 High/Low Band + Rejection Candle:
+    Strategi EMA50 High/Low Band:
 
     BUY  (uptrend, harga di atas band):
-      - candle pullback turun MENYENTUH band atas (low <= EMA50_high)
-      - lalu CLOSE balik di atas band (close > EMA50_high) — keluar dari EMA
-      - candle bullish dengan lower wick (rejection)
+      - candle menyentuh band atas (low <= EMA50_high)
+      - close di atas band (closed_out) + candle bullish
     SELL (downtrend, harga di bawah band):
-      - candle pullback naik MENYENTUH band bawah (high >= EMA50_low)
-      - lalu CLOSE balik di bawah band (close < EMA50_low)
-      - candle bearish dengan upper wick (rejection)
+      - candle menyentuh band bawah (high >= EMA50_low)
+      - close di bawah band (closed_out) + candle bearish
 
-    SL di luar wick rejection, TP = RR (default 1:3 dari .env MIN_RR_RATIO).
+    SL di luar wick, TP = RR dari .env MIN_RR_RATIO.
     """
     period = settings.ema_slow
     if len(bars) < period + 3:
@@ -161,16 +159,15 @@ def analyze(
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
     if direction == Direction.BUY:
-        touched    = conf.low <= eh            # menyentuh band atas (pullback)
-        closed_out = conf.close > eh           # close balik keluar (di atas band)
+        # Candle menyentuh band atas (pullback) + close di atas band + bullish
+        touched    = conf.low <= eh
+        closed_out = conf.close >= eh
         bullish    = conf.close > conf.open
-        lower_wick = min(conf.open, conf.close) - conf.low
-        rejection  = lower_wick >= body * 0.8 or lower_wick >= 50 * point
 
-        if not (touched and closed_out and bullish and rejection):
+        if not (touched and closed_out and bullish):
             logger.info(
                 f"[NO TRADE][{symbol}] BUY belum konfirmasi band {band_str} — "
-                f"touch={touched} close_out={closed_out} bull={bullish} reject={rejection}"
+                f"touch={touched} close_out={closed_out} bull={bullish}"
             )
             return None
 
@@ -182,16 +179,15 @@ def analyze(
         tp = price + sl_dist * rr_target
 
     else:  # SELL
-        touched    = conf.high >= el           # menyentuh band bawah (pullback)
-        closed_out = conf.close < el           # close balik keluar (di bawah band)
+        # Candle menyentuh band bawah (pullback) + close di bawah band + bearish
+        touched    = conf.high >= el
+        closed_out = conf.close <= el
         bearish    = conf.close < conf.open
-        upper_wick = conf.high - max(conf.open, conf.close)
-        rejection  = upper_wick >= body * 0.8 or upper_wick >= 50 * point
 
-        if not (touched and closed_out and bearish and rejection):
+        if not (touched and closed_out and bearish):
             logger.info(
                 f"[NO TRADE][{symbol}] SELL belum konfirmasi band {band_str} — "
-                f"touch={touched} close_out={closed_out} bear={bearish} reject={rejection}"
+                f"touch={touched} close_out={closed_out} bear={bearish}"
             )
             return None
 
