@@ -74,7 +74,7 @@ def notify_entry(symbol: str, direction: str, price: float, sl: float,
                  tp1: float = 0.0, tp2: float = 0.0,
                  price_high: float = 0.0, point: float = 0.001):
     dir_label = "Buy Now" if direction == "BUY" else "Sell Now"
-    icon = "✅"
+    icon = "🟢" if direction == "BUY" else "🔴"
     p_lo = min(price, price_high) if price_high else price
     p_hi = max(price, price_high) if price_high else price
     entry_str = f"@{p_lo:.3f}-{p_hi:.3f}" if price_high else f"@{price:.3f}"
