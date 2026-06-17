@@ -85,13 +85,16 @@ def notify_entry(symbol: str, direction: str, price: float, sl: float,
 
     lines = [
         f"{icon} <b>{symbol} {dir_label}</b> {entry_str}{tag}",
+        f"",
         f"🚫 StopLose     : <code>{sl}</code>  <i>({sl_pts} pts / {_pips(sl_pts)})</i>",
+        f"",
     ]
     if tp1:
         lines.append(f"🔵 TakeProfit 1 : <code>{tp1}</code>  <i>({tp1_pts} pts / {_pips(tp1_pts)})</i>")
     if tp2:
         lines.append(f"🔵 TakeProfit 2 : <code>{tp2}</code>  <i>({tp2_pts} pts / {_pips(tp2_pts)})</i>")
     lines.append(f"🎯 TakeProfit 3 : <code>{tp}</code>  <i>({tp_pts} pts / {_pips(tp_pts)})</i>")
+    lines.append(f"")
     lines.append(f"📦 Lot : {lot}  |  ⏰ {_now_wib()}")
     send("\n".join(lines))
 
