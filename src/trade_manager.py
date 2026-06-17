@@ -105,8 +105,6 @@ def is_trading_session() -> bool:
         if not recommended:
             logger.debug(f"[SESSION] Auto — Sesi Asia (WIB {wib_hour:02d}:xx), skip entry")
             return False
-        names = ", ".join(SESSION_PRESETS[s]["label"] for s in recommended)
-        logger.debug(f"[SESSION] Auto — Sesi aktif: {names}")
         return True
 
     # Manual: cek sesi yang dipilih user
