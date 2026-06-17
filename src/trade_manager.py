@@ -489,7 +489,9 @@ def manage_positions(
 
     if position_meta:
         cmds += _multi_tp_sl_commands(positions, ticks, points, position_meta)
-    cmds += _break_even_commands(positions, ticks, points)
+    else:
+        # Hanya pakai standalone BE jika multi-TP tidak aktif
+        cmds += _break_even_commands(positions, ticks, points)
     cmds += _partial_close_commands(positions, ticks, points, already_partial)
     cmds += _trailing_sl_commands(positions, ticks, points)
     cmds += _pyramid_commands(positions, ticks, points, pyramid_counts)
