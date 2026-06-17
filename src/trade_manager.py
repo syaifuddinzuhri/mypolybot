@@ -371,12 +371,103 @@ def _eod_close_commands(positions: List[Position]) -> List[EACommand]:
     return cmds
 
 
+def _multi_tp_sl_commands(
+    positions: List[Position], ticks: dict, points: dict, position_meta: dict
+) -> List[EACommand]:
+    """
+    Multi-TP SL management — geser SL otomatis saat TP1/TP2 tercapai.
+
+    TP1 (1:1 RR) tercapai → geser SL ke Break Even (entry)
+    TP2 (2:1 RR) tercapai → geser SL ke +1x SL dari entry (lock profit)
+    TP3             → trailing SL mengambil alih
+    """
+    if not settings.multi_tp_enabled:
+        return []
+
+    cmds: List[EACommand] = []
+    for pos in positions:
+        tick: Optional[TickData] = ticks.get(pos.symbol)
+        point: Optional[float] = points.get(pos.symbol)
+        if tick is None or point is None:
+            continue
+
+        meta = position_meta.get(pos.ticket, {})
+        entry = meta.get("entry", pos.price_open)
+        sl_orig = meta.get("sl_original", None)
+        if sl_orig is None:
+            continue
+
+        sl_dist = abs(entry - sl_orig)
+        if sl_dist <= 0:
+            continue
+
+        tp1_price = (entry - sl_dist * settings.tp1_rr) if pos.type == "sell" else (entry + sl_dist * settings.tp1_rr)
+        tp2_price = (entry - sl_dist * settings.tp2_rr) if pos.type == "sell" else (entry + sl_dist * settings.tp2_rr)
+
+        current_price = tick.ask if pos.type == "sell" else tick.bid
+
+        if pos.type == "sell":
+            profit_dist = entry - current_price
+            tp1_hit = profit_dist >= sl_dist * settings.tp1_rr
+            tp2_hit = profit_dist >= sl_dist * settings.tp2_rr
+
+            # TP2 hit → lock profit: SL = entry - 1x SL distance (profit zone)
+            if tp2_hit:
+                new_sl = round(entry - sl_dist, 5)
+                if pos.sl > new_sl:  # hanya geser ke arah lebih menguntungkan
+                    cmds.append(EACommand(
+                        action="MODIFY_SL", symbol=pos.symbol,
+                        ticket=pos.ticket, sl=new_sl, tp=pos.tp,
+                        comment="tp2_lock",
+                    ))
+                    logger.info(f"[MULTI-TP][{pos.symbol}] TP2 hit → SL lock profit {new_sl:.5f}")
+
+            # TP1 hit → geser ke BE (hanya kalau SL masih di loss zone)
+            elif tp1_hit:
+                new_sl = round(entry, 5)
+                if pos.sl > new_sl:
+                    cmds.append(EACommand(
+                        action="MODIFY_SL", symbol=pos.symbol,
+                        ticket=pos.ticket, sl=new_sl, tp=pos.tp,
+                        comment="tp1_be",
+                    ))
+                    logger.info(f"[MULTI-TP][{pos.symbol}] TP1 hit → SL ke BE {new_sl:.5f}")
+
+        else:  # BUY
+            profit_dist = current_price - entry
+            tp1_hit = profit_dist >= sl_dist * settings.tp1_rr
+            tp2_hit = profit_dist >= sl_dist * settings.tp2_rr
+
+            if tp2_hit:
+                new_sl = round(entry + sl_dist, 5)
+                if pos.sl < new_sl:
+                    cmds.append(EACommand(
+                        action="MODIFY_SL", symbol=pos.symbol,
+                        ticket=pos.ticket, sl=new_sl, tp=pos.tp,
+                        comment="tp2_lock",
+                    ))
+                    logger.info(f"[MULTI-TP][{pos.symbol}] TP2 hit → SL lock profit {new_sl:.5f}")
+
+            elif tp1_hit:
+                new_sl = round(entry, 5)
+                if pos.sl < new_sl:
+                    cmds.append(EACommand(
+                        action="MODIFY_SL", symbol=pos.symbol,
+                        ticket=pos.ticket, sl=new_sl, tp=pos.tp,
+                        comment="tp1_be",
+                    ))
+                    logger.info(f"[MULTI-TP][{pos.symbol}] TP1 hit → SL ke BE {new_sl:.5f}")
+
+    return cmds
+
+
 def manage_positions(
     positions: List[Position],
     ticks: dict,           # symbol -> TickData
     points: dict,          # symbol -> float (point size)
     already_partial: set,  # set ticket yang sudah partial close
     pyramid_counts: dict,  # ticket -> jumlah pyramid yang sudah dibuat
+    position_meta: dict = None,
 ) -> List[EACommand]:
     """
     Entry point utama trade manager.
@@ -393,6 +484,8 @@ def manage_positions(
     if eod:
         return eod
 
+    if position_meta:
+        cmds += _multi_tp_sl_commands(positions, ticks, points, position_meta)
     cmds += _break_even_commands(positions, ticks, points)
     cmds += _partial_close_commands(positions, ticks, points, already_partial)
     cmds += _trailing_sl_commands(positions, ticks, points)

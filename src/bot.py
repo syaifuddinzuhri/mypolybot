@@ -150,6 +150,7 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
         _state["points"],
         _state["already_partial"],
         _state["pyramid_counts"],
+        position_meta=_state.get("_position_meta", {}),
     )
     _state["pending_commands"].extend(mgmt_cmds)
 
@@ -234,6 +235,7 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
         "lot": signal.lot,
         "entry": round(_entry_price, 5),
         "sl": signal.sl,
+        "sl_original": signal.sl,   # untuk multi-TP SL management
         "tp": signal.tp,
         "comment": signal.comment,
     })
