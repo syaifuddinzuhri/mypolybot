@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     symbols: str = "XAUUSD,BTCUSD"
     lot_size: float = 0.02
-    max_daily_loss: float = 100.0
+    daily_loss_percent: float = 3.0   # hard stop dinamis: X% dari balance
     max_positions_per_symbol: int = 3
     max_total_positions: int = 10
 
