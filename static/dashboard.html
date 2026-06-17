@@ -979,13 +979,13 @@ async function loadAnalysis() {
   const d = await api('/ea/analysis?symbol=' + sym);
   if (!d) { el.innerHTML = '<div class="empty"><i class="ti ti-loader"></i>Menunggu data...</div>'; return; }
 
-  const trendCls  = d.trend==='BUY' ? 'green' : d.trend==='SELL' ? 'red' : 'muted';
-  const trendIcon = d.trend==='BUY' ? '↑' : d.trend==='SELL' ? '↓' : '–';
+  const trendCls  = d.trend==='BUY' ? 'green' : d.trend==='SELL' ? 'red' : 'yellow';
+  const trendIcon = d.trend==='BUY' ? '↑' : d.trend==='SELL' ? '↓' : '↔';
   const trendBadge = d.trend==='BUY'
-    ? badge('BUY ' + trendIcon, 'green')
+    ? badge('BUY ↑', 'green')
     : d.trend==='SELL'
-    ? badge('SELL ' + trendIcon, 'red')
-    : badge('NEUTRAL –', 'gray');
+    ? badge('SELL ↓', 'red')
+    : badge('⚠️ SIDEWAYS ↔', 'yellow');
 
   const spreadCls = d.spread < 20 ? 'green' : d.spread < 40 ? 'yellow' : 'red';
   const spreadBadge = `<span class="${spreadCls}">${d.spread} pts</span>`;
@@ -1001,7 +1001,7 @@ async function loadAnalysis() {
   el.innerHTML = `
     <div class="metric-grid" style="margin-bottom:8px">
       <div class="metric">
-        <div class="metric-val ${trendCls}" style="font-size:16px">${d.trend} ${trendIcon}</div>
+        <div class="metric-val ${trendCls}" style="font-size:16px">${d.trend==='NEUTRAL'?'SIDEWAYS':d.trend} ${trendIcon}</div>
         <div class="metric-label">Trend</div>
       </div>
       <div class="metric">

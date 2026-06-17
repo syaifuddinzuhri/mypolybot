@@ -136,6 +136,15 @@ def notify_daily_stop(balance: float, loss: float, stop_pct: float):
     )
 
 
+def notify_sideways(symbol: str, buy_count: int, sell_count: int, lookback: int = 5):
+    send(
+        f"⚠️ <b>{symbol} — Market Sideways</b>\n"
+        f"Trend tidak terdeteksi ({max(buy_count, sell_count)}/{lookback} candle)\n"
+        f"Bot tidak entry sampai trend kembali\n"
+        f"⏰ {_now_wib()}"
+    )
+
+
 def notify_cooldown(symbol: str, consecutive: int, minutes: int):
     send(
         f"⏸ <b>Cooldown Aktif — {symbol}</b>\n"

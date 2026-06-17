@@ -16,7 +16,7 @@ from .performance_tracker import record_trade
 from .config import settings
 from .telegram_notifier import (
     notify_entry, notify_close, notify_daily_stop,
-    notify_cooldown, notify_startup,
+    notify_cooldown, notify_startup, notify_sideways,
 )
 
 _state: dict = {
@@ -31,6 +31,7 @@ _state: dict = {
     "last_entry_time": {},      # symbol -> datetime
     "_last_pnl_snapshot": {},   # ticket -> float profit saat terakhir lihat
     "bot_paused": False,        # True = bot tidak akan entry baru
+    "_last_trend": {},          # symbol -> "BUY"|"SELL"|"NEUTRAL" untuk deteksi perubahan
 }
 
 
@@ -184,6 +185,13 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
 
     # Trend detection
     direction = detect_trend(bars, point)
+    prev_trend = _state["_last_trend"].get(symbol, "NEUTRAL")
+    curr_trend = direction.value if direction else "NEUTRAL"
+    if curr_trend != prev_trend:
+        _state["_last_trend"][symbol] = curr_trend
+        if direction is None and prev_trend in ("BUY", "SELL"):
+            # Trend baru saja berubah ke sideways — kirim notif sekali
+            notify_sideways(symbol, buy_count=0, sell_count=0)
     if direction is None:
         return
 
