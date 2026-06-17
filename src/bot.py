@@ -214,14 +214,7 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
     if signal is None:
         return
 
-    # Kalau sudah ada posisi searah, pakai SL/TP posisi pertama (TP sama)
-    existing = [
-        p for p in positions
-        if p.symbol == symbol and p.type == ("buy" if direction == Direction.BUY else "sell")
-    ]
-    if existing:
-        signal.sl = existing[0].sl
-        signal.tp = existing[0].tp
+    # Setiap entry hitung SL/TP sendiri agar RR selalu 1:2
 
     cmd = EACommand(
         action=signal.direction.value,
