@@ -96,7 +96,7 @@ def notify_entry(symbol: str, direction: str, price: float, sl: float,
         lines.append(f"🔵 TakeProfit 2 : <code>{fmt(tp2)}</code>  <i>({tp2_pts} pts / {_pips(tp2_pts)})</i>")
     lines.append(f"🎯 TakeProfit 3 : <code>{fmt(tp)}</code>  <i>({tp_pts} pts / {_pips(tp_pts)})</i>")
     lines.append(f"")
-    lines.append(f"📦 Lot : {lot}  |  ⏰ {_now_wib()}")
+    lines.append(f"⏰ {_now_wib()}")
     send("\n".join(lines))
 
 
