@@ -175,6 +175,7 @@ def analyze(
     # ATR dari M15 untuk SL buffer yang lebih stabil
     atr = _atr(bars)
     buffer = max(atr * settings.sl_atr_multiplier, settings.sl_min_points * point)
+    buffer = min(buffer, settings.sl_max_points * point)
 
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
