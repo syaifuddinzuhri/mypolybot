@@ -84,8 +84,7 @@ class Settings(BaseSettings):
     dxy_refresh_seconds: int = 300      # refresh DXY tiap 5 menit
     dxy_trend_threshold: float = 0.15   # selisih DXY vs EMA untuk dianggap "trending"
 
-    class Config:
-        env_file = ".env"
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
     @property
     def symbol_list(self) -> List[str]:
