@@ -63,28 +63,35 @@ def notify_startup(symbol: str):
     )
 
 
+def _pips(pts: int) -> str:
+    """Convert points ke pips (1 pip = 10 points untuk 3-decimal broker)."""
+    return f"{pts // 10} pips"
+
+
 def notify_entry(symbol: str, direction: str, price: float, sl: float,
                  tp: float, lot: float, sl_pts: int, tp_pts: int,
                  entry_type: str = "",
                  tp1: float = 0.0, tp2: float = 0.0,
-                 price_high: float = 0.0):
+                 price_high: float = 0.0, point: float = 0.001):
     dir_label = "Buy Now" if direction == "BUY" else "Sell Now"
     icon = "✅"
-    # Entry range: price ± spread (tampilkan low-high)
     p_lo = min(price, price_high) if price_high else price
     p_hi = max(price, price_high) if price_high else price
     entry_str = f"@{p_lo:.3f}-{p_hi:.3f}" if price_high else f"@{price:.3f}"
     tag = f" <i>({entry_type})</i>" if entry_type else ""
 
+    tp1_pts = int(abs(tp1 - price) / point) if (tp1 and point) else 0
+    tp2_pts = int(abs(tp2 - price) / point) if (tp2 and point) else 0
+
     lines = [
         f"{icon} <b>{symbol} {dir_label}</b> {entry_str}{tag}",
-        f"🚫 StopLose  : <code>{sl}</code>  <i>(-{sl_pts} pts)</i>",
+        f"🚫 StopLose     : <code>{sl}</code>  <i>({sl_pts} pts / {_pips(sl_pts)})</i>",
     ]
     if tp1:
-        lines.append(f"🔵 TakeProfit 1 : <code>{tp1}</code>")
+        lines.append(f"🔵 TakeProfit 1 : <code>{tp1}</code>  <i>({tp1_pts} pts / {_pips(tp1_pts)})</i>")
     if tp2:
-        lines.append(f"🔵 TakeProfit 2 : <code>{tp2}</code>")
-    lines.append(f"🎯 TakeProfit 3 : <code>{tp}</code>  <i>(+{tp_pts} pts)</i>")
+        lines.append(f"🔵 TakeProfit 2 : <code>{tp2}</code>  <i>({tp2_pts} pts / {_pips(tp2_pts)})</i>")
+    lines.append(f"🎯 TakeProfit 3 : <code>{tp}</code>  <i>({tp_pts} pts / {_pips(tp_pts)})</i>")
     lines.append(f"📦 Lot : {lot}  |  ⏰ {_now_wib()}")
     send("\n".join(lines))
 

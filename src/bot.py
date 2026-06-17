@@ -264,6 +264,7 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
         tp1=signal.tp1,
         tp2=signal.tp2,
         price_high=round(price_high, digits),
+        point=point,
     )
 
 
