@@ -205,6 +205,101 @@ async def get_config():
     }
 
 
+@app.patch("/config")
+async def patch_config(updates: dict):
+    """Update settings di memory dan tulis ke .env agar persist setelah restart."""
+    from pathlib import Path
+
+    # Field yang boleh diubah dari dashboard (whitelist)
+    ALLOWED = {
+        "lot_size": float,
+        "max_spread_points": int,
+        "min_rr_ratio": float,
+        "daily_loss_percent": float,
+        "entry_interval_seconds": int,
+        "loss_cooldown_enabled": bool,
+        "loss_cooldown_trigger": int,
+        "loss_cooldown_minutes": int,
+        "trailing_sl_enabled": bool,
+        "trailing_sl_points": int,
+        "break_even_enabled": bool,
+        "break_even_trigger_points": int,
+        "partial_close_enabled": bool,
+        "partial_close_trigger_points": int,
+        "partial_close_ratio": float,
+        "eod_close_enabled": bool,
+        "eod_hour": int,
+        "eod_minute": int,
+        "news_filter_enabled": bool,
+        "dxy_filter_enabled": bool,
+        "max_positions_per_symbol": int,
+    }
+
+    applied = {}
+    rejected = []
+
+    for key, value in updates.items():
+        if key not in ALLOWED:
+            rejected.append(key)
+            continue
+        cast = ALLOWED[key]
+        try:
+            typed = cast(value)
+            setattr(settings, key, typed)
+            applied[key] = typed
+        except Exception as e:
+            rejected.append(f"{key}: {e}")
+
+    # Tulis ke .env agar persist
+    env_path = Path(".env")
+    if env_path.exists() and applied:
+        lines = env_path.read_text().splitlines()
+        env_map = {}
+        for line in lines:
+            if "=" in line and not line.strip().startswith("#"):
+                k, _, v = line.partition("=")
+                env_map[k.strip()] = v.split("#")[0].strip()
+
+        for key, val in applied.items():
+            env_key = key.upper()
+            if isinstance(val, bool):
+                env_map[env_key] = "true" if val else "false"
+            else:
+                env_map[env_key] = str(val)
+
+        # Rebuild .env — pertahankan komentar dan urutan
+        new_lines = []
+        updated_keys = set()
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("#") or "=" not in stripped:
+                new_lines.append(line)
+                continue
+            k = line.partition("=")[0].strip()
+            if k.upper() in {key.upper() for key in applied}:
+                val = env_map[k.upper()]
+                comment = ""
+                if "#" in line.partition("=")[2]:
+                    comment = "  #" + line.partition("=")[2].partition("#")[2]
+                new_lines.append(f"{k}={val}{comment}")
+                updated_keys.add(k.upper())
+            else:
+                new_lines.append(line)
+
+        # Tambah key baru yang belum ada di .env
+        for key, val in applied.items():
+            if key.upper() not in updated_keys:
+                if isinstance(val, bool):
+                    new_lines.append(f"{key.upper()}={'true' if val else 'false'}")
+                else:
+                    new_lines.append(f"{key.upper()}={val}")
+
+        env_path.write_text("\n".join(new_lines) + "\n")
+        logger.info(f"[CONFIG] Updated: {applied}")
+
+    return {"applied": applied, "rejected": rejected}
+
+
 @app.get("/logs/recent")
 async def logs_recent(n: int = 200):
     """Ambil N baris log terakhir."""

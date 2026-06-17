@@ -15,6 +15,19 @@
 }
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;min-height:100vh}
 
+/* Config inputs */
+.cfg-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2)}
+.cfg-row:last-of-type{border-bottom:none}
+.cfg-row label{color:var(--muted);font-size:12px;flex:1}
+.cfg-row input[type=number]{width:110px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:13px;text-align:right}
+.cfg-row input[type=number]:focus{outline:none;border-color:var(--blue)}
+.cfg-toggle{width:44px;height:24px;border-radius:12px;background:var(--border2);cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.cfg-toggle::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s}
+.cfg-toggle.on{background:var(--green)}
+.cfg-toggle.on::after{left:23px}
+.cfg-save-btn{width:100%;margin-top:12px;padding:9px;background:var(--blue);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer}
+.cfg-save-btn:active{opacity:.8}
+
 /* Header */
 .header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .header-left{display:flex;align-items:center;gap:8px}
@@ -156,6 +169,9 @@ tr:hover td{background:#1c2128}
   </button>
   <button class="nav-btn" onclick="showPage('terminal')" id="tab-terminal">
     <i class="ti ti-terminal-2"></i> Log
+  </button>
+  <button class="nav-btn" onclick="showPage('config')" id="tab-config">
+    <i class="ti ti-settings"></i> Config
   </button>
   <button class="nav-btn" onclick="showPage('about')" id="tab-about">
     <i class="ti ti-info-circle"></i> Tentang
@@ -482,6 +498,101 @@ tr:hover td{background:#1c2128}
     </div>
   </div>
 
+</div>
+
+<!-- PAGE: CONFIG -->
+<div class="page" id="page-config">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px">
+    <div style="font-size:12px;color:var(--muted)">Perubahan langsung aktif + tersimpan ke .env</div>
+    <button onclick="loadConfig()" style="background:var(--border2);border:none;color:var(--text);padding:5px 12px;border-radius:6px;font-size:11px;cursor:pointer"><i class="ti ti-refresh"></i> Refresh</button>
+  </div>
+
+  <!-- Trading -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-coin"></i> Trading</div>
+    <div class="cfg-row"><label>Lot Size</label><input type="number" id="cfg-lot_size" step="0.01" min="0.01"></div>
+    <div class="cfg-row"><label>Max Spread (pts)</label><input type="number" id="cfg-max_spread_points" step="1" min="10"></div>
+    <div class="cfg-row"><label>Min RR Ratio</label><input type="number" id="cfg-min_rr_ratio" step="0.1" min="1"></div>
+    <div class="cfg-row"><label>Daily Loss Stop (%)</label><input type="number" id="cfg-daily_loss_percent" step="0.5" min="0.5"></div>
+    <div class="cfg-row"><label>Entry Interval (detik)</label><input type="number" id="cfg-entry_interval_seconds" step="30" min="30"></div>
+    <div class="cfg-row"><label>Max Posisi / Symbol</label><input type="number" id="cfg-max_positions_per_symbol" step="1" min="1"></div>
+    <button class="cfg-save-btn" onclick="saveConfig('trading')">Simpan Trading</button>
+  </div>
+
+  <!-- Cooldown -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-player-pause"></i> Loss Cooldown</div>
+    <div class="cfg-row">
+      <label>Cooldown Aktif</label>
+      <div class="cfg-toggle" id="cfg-loss_cooldown_enabled" onclick="toggleCfg('loss_cooldown_enabled')"></div>
+    </div>
+    <div class="cfg-row"><label>Trigger (loss berturut)</label><input type="number" id="cfg-loss_cooldown_trigger" step="1" min="1"></div>
+    <div class="cfg-row"><label>Durasi Pause (menit)</label><input type="number" id="cfg-loss_cooldown_minutes" step="5" min="5"></div>
+    <button class="cfg-save-btn" onclick="saveConfig('cooldown')">Simpan Cooldown</button>
+  </div>
+
+  <!-- Trailing SL -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-arrows-move"></i> Trailing SL</div>
+    <div class="cfg-row">
+      <label>Trailing SL Aktif</label>
+      <div class="cfg-toggle" id="cfg-trailing_sl_enabled" onclick="toggleCfg('trailing_sl_enabled')"></div>
+    </div>
+    <div class="cfg-row"><label>Jarak Trailing (pts)</label><input type="number" id="cfg-trailing_sl_points" step="10" min="50"></div>
+    <button class="cfg-save-btn" onclick="saveConfig('trailing')">Simpan Trailing SL</button>
+  </div>
+
+  <!-- Break Even -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-equal"></i> Break Even</div>
+    <div class="cfg-row">
+      <label>Break Even Aktif</label>
+      <div class="cfg-toggle" id="cfg-break_even_enabled" onclick="toggleCfg('break_even_enabled')"></div>
+    </div>
+    <div class="cfg-row"><label>Trigger Profit (pts)</label><input type="number" id="cfg-break_even_trigger_points" step="10" min="20"></div>
+    <button class="cfg-save-btn" onclick="saveConfig('breakeven')">Simpan Break Even</button>
+  </div>
+
+  <!-- Partial Close -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-scissors"></i> Partial Close</div>
+    <div class="cfg-row">
+      <label>Partial Close Aktif</label>
+      <div class="cfg-toggle" id="cfg-partial_close_enabled" onclick="toggleCfg('partial_close_enabled')"></div>
+    </div>
+    <div class="cfg-row"><label>Trigger Profit (pts)</label><input type="number" id="cfg-partial_close_trigger_points" step="10" min="50"></div>
+    <div class="cfg-row"><label>Rasio Close (%)</label><input type="number" id="cfg-partial_close_ratio_pct" step="10" min="10" max="90"></div>
+    <button class="cfg-save-btn" onclick="saveConfig('partial')">Simpan Partial Close</button>
+  </div>
+
+  <!-- EOD -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-calendar-off"></i> End of Day Close</div>
+    <div class="cfg-row">
+      <label>EOD Close Aktif</label>
+      <div class="cfg-toggle" id="cfg-eod_close_enabled" onclick="toggleCfg('eod_close_enabled')"></div>
+    </div>
+    <div class="cfg-row"><label>Jam Tutup (UTC)</label><input type="number" id="cfg-eod_hour" step="1" min="0" max="23"></div>
+    <div class="cfg-row"><label>Menit Tutup</label><input type="number" id="cfg-eod_minute" step="1" min="0" max="59"></div>
+    <button class="cfg-save-btn" onclick="saveConfig('eod')">Simpan EOD</button>
+  </div>
+
+  <!-- Filter -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-filter"></i> Filter Tambahan</div>
+    <div class="cfg-row">
+      <label>News Filter</label>
+      <div class="cfg-toggle" id="cfg-news_filter_enabled" onclick="toggleCfg('news_filter_enabled')"></div>
+    </div>
+    <div class="cfg-row">
+      <label>DXY Filter</label>
+      <div class="cfg-toggle" id="cfg-dxy_filter_enabled" onclick="toggleCfg('dxy_filter_enabled')"></div>
+    </div>
+    <button class="cfg-save-btn" onclick="saveConfig('filters')">Simpan Filter</button>
+  </div>
+
+  <div id="cfg-toast" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--green);color:#000;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;z-index:999"></div>
 </div>
 
 <!-- PAGE: FILTER -->
@@ -1310,7 +1421,110 @@ window.showPage = function(name) {
   origShowPage(name);
   if (name === 'terminal' && !termEs) termConnect();
   if (name === 'about') loadAbout();
+  if (name === 'config') loadConfig();
 };
+
+// ── Config Page ───────────────────────────────────────────────────────────────
+
+let _cfgState = {};
+
+function cfgSet(id, val) {
+  const el = document.getElementById('cfg-' + id);
+  if (!el) return;
+  if (el.classList.contains('cfg-toggle')) {
+    el.classList.toggle('on', !!val);
+    el.dataset.val = val ? 'true' : 'false';
+  } else {
+    el.value = val;
+  }
+}
+
+function cfgGet(id) {
+  const el = document.getElementById('cfg-' + id);
+  if (!el) return null;
+  if (el.classList.contains('cfg-toggle')) return el.dataset.val === 'true';
+  return el.value;
+}
+
+function toggleCfg(key) {
+  const el = document.getElementById('cfg-' + key);
+  const cur = el.dataset.val === 'true';
+  el.classList.toggle('on', !cur);
+  el.dataset.val = !cur ? 'true' : 'false';
+}
+
+async function loadConfig() {
+  const cfg = await api('/config');
+  if (!cfg) return;
+  _cfgState = cfg;
+  cfgSet('lot_size', cfg.lot_size);
+  cfgSet('max_spread_points', cfg.max_spread_points);
+  cfgSet('min_rr_ratio', cfg.min_rr_ratio);
+  cfgSet('daily_loss_percent', cfg.daily_loss_percent);
+  cfgSet('entry_interval_seconds', cfg.entry_interval_seconds);
+  cfgSet('max_positions_per_symbol', cfg.max_positions_per_symbol);
+  cfgSet('loss_cooldown_enabled', cfg.loss_cooldown_enabled);
+  cfgSet('loss_cooldown_trigger', cfg.loss_cooldown_trigger);
+  cfgSet('loss_cooldown_minutes', cfg.loss_cooldown_minutes);
+  cfgSet('trailing_sl_enabled', cfg.trailing_sl_enabled);
+  cfgSet('trailing_sl_points', cfg.trailing_sl_points);
+  cfgSet('break_even_enabled', cfg.break_even_enabled);
+  cfgSet('break_even_trigger_points', cfg.break_even_trigger_points);
+  cfgSet('partial_close_enabled', cfg.partial_close_enabled);
+  cfgSet('partial_close_trigger_points', cfg.partial_close_trigger_points);
+  cfgSet('partial_close_ratio_pct', Math.round((cfg.partial_close_ratio || 0.5) * 100));
+  cfgSet('eod_close_enabled', cfg.eod_close_enabled);
+  cfgSet('eod_hour', cfg.eod_hour);
+  cfgSet('eod_minute', cfg.eod_minute);
+  cfgSet('news_filter_enabled', cfg.news_filter_enabled);
+  cfgSet('dxy_filter_enabled', cfg.dxy_filter_enabled);
+}
+
+const CFG_GROUPS = {
+  trading:  ['lot_size','max_spread_points','min_rr_ratio','daily_loss_percent','entry_interval_seconds','max_positions_per_symbol'],
+  cooldown: ['loss_cooldown_enabled','loss_cooldown_trigger','loss_cooldown_minutes'],
+  trailing: ['trailing_sl_enabled','trailing_sl_points'],
+  breakeven:['break_even_enabled','break_even_trigger_points'],
+  partial:  ['partial_close_enabled','partial_close_trigger_points'],
+  eod:      ['eod_close_enabled','eod_hour','eod_minute'],
+  filters:  ['news_filter_enabled','dxy_filter_enabled'],
+};
+
+async function saveConfig(group) {
+  const keys = CFG_GROUPS[group];
+  const payload = {};
+  for (const k of keys) {
+    const raw = cfgGet(k);
+    if (raw === null) continue;
+    // partial_close_ratio_pct → ratio 0–1
+    if (k === 'partial_close_ratio_pct') {
+      payload['partial_close_ratio'] = parseFloat(raw) / 100;
+    } else if (raw === 'true' || raw === 'false') {
+      payload[k] = raw === 'true';
+    } else if (!isNaN(raw) && raw !== '') {
+      payload[k] = Number(raw);
+    } else {
+      payload[k] = raw;
+    }
+  }
+  const res = await fetch('/config', {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  }).then(r => r.json()).catch(() => null);
+
+  const toast = document.getElementById('cfg-toast');
+  if (res && Object.keys(res.applied || {}).length > 0) {
+    toast.textContent = '✓ Tersimpan: ' + Object.keys(res.applied).join(', ');
+    toast.style.background = 'var(--green)';
+  } else {
+    toast.textContent = '✗ Gagal menyimpan';
+    toast.style.background = 'var(--red)';
+  }
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 3000);
+  await loadConfig();
+}
 
 // ── About Page ────────────────────────────────────────────────────────────────
 async function loadAbout() {
