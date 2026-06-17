@@ -89,7 +89,8 @@ class EACommand(BaseModel):
 class EARatesPayload(BaseModel):
     symbol: str
     timeframe: str
-    bars: List[RateBar]
+    bars: List[RateBar]           # M15 — trend detection
+    bars_m5: List[RateBar] = []   # M5  — entry signal (opsional, fallback ke bars jika kosong)
     tick: TickData
     meta: SymbolMeta
     account: AccountInfo

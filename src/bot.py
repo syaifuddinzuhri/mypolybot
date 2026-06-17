@@ -208,8 +208,9 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
         logger.info(f"[NO TRADE][{symbol}] Macro filter: {macro_reason}")
         return
 
-    # SR zone check
-    signal = analyze(symbol, bars, tick, point, digits, direction)
+    # Entry signal dari M5 (jika tersedia), trend dari M15
+    bars_m5 = payload.bars_m5 if payload.bars_m5 else None
+    signal = analyze(symbol, bars, tick, point, digits, direction, bars_entry=bars_m5)
     if signal is None:
         return
 

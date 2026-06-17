@@ -102,7 +102,7 @@ void PushRates()
    MqlTick tick;
    if (!SymbolInfoTick(g_symbol, tick)) return;
 
-   // Build bars JSON
+   // Build M15 bars JSON (trend detection)
    string barsJson = "[";
    for (int i = 0; i < copied; i++) {
       if (i > 0) barsJson += ",";
@@ -113,6 +113,20 @@ void PushRates()
       );
    }
    barsJson += "]";
+
+   // Build M5 bars JSON (entry signal — multi-timeframe)
+   MqlRates bars_m5[];
+   int copied_m5 = CopyRates(g_symbol, PERIOD_M5, 0, InpBars, bars_m5);
+   string barsM5Json = "[";
+   for (int i = 0; i < copied_m5; i++) {
+      if (i > 0) barsM5Json += ",";
+      barsM5Json += StringFormat(
+         "{\"time\":%d,\"open\":%.5f,\"high\":%.5f,\"low\":%.5f,\"close\":%.5f,\"volume\":%d}",
+         (long)bars_m5[i].time, bars_m5[i].open, bars_m5[i].high,
+         bars_m5[i].low, bars_m5[i].close, (long)bars_m5[i].tick_volume
+      );
+   }
+   barsM5Json += "]";
 
    // Tick JSON
    string tickJson = StringFormat(
@@ -182,8 +196,8 @@ void PushRates()
    string tfStr = TimeframeToString(InpTF);
    string body = StringFormat(
       "{\"symbol\":\"%s\",\"timeframe\":\"%s\","
-      "\"bars\":%s,\"tick\":%s,\"meta\":%s,\"account\":%s,\"positions\":%s}",
-      g_symbol, tfStr, barsJson, tickJson, metaJson, accJson, posJson
+      "\"bars\":%s,\"bars_m5\":%s,\"tick\":%s,\"meta\":%s,\"account\":%s,\"positions\":%s}",
+      g_symbol, tfStr, barsJson, barsM5Json, tickJson, metaJson, accJson, posJson
    );
 
    HttpPost(InpServerURL + "/ea/rates", body);

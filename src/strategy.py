@@ -144,32 +144,34 @@ def analyze(
     point: float,
     digits: int,
     direction: Direction,
+    bars_entry: Optional[List[RateBar]] = None,
 ) -> Optional[TradeSignal]:
     """
-    Strategi EMA50 High/Low Band:
+    Multi-Timeframe Strategy:
+    - bars       : M15 — sudah dipakai untuk detect_trend(), dipakai ulang untuk EMA band reference
+    - bars_entry : M5  — candle konfirmasi entry (lebih cepat). Fallback ke bars jika None.
 
-    BUY  (uptrend, harga di atas band):
-      - candle menyentuh band atas (low <= EMA50_high)
-      - close di atas band (closed_out) + candle bullish
-    SELL (downtrend, harga di bawah band):
-      - candle menyentuh band bawah (high >= EMA50_low)
-      - close di bawah band (closed_out) + candle bearish
-
-    SL di luar wick, TP = RR dari .env MIN_RR_RATIO.
+    BUY  (uptrend M15): M5 candle breakout/pullback ke atas band
+    SELL (downtrend M15): M5 candle breakout/pullback ke bawah band
     """
     period = settings.ema_slow
-    if len(bars) < period + 3:
+
+    # Gunakan M5 bars untuk entry jika tersedia, fallback ke M15
+    entry_bars = bars_entry if (bars_entry and len(bars_entry) >= period + 3) else bars
+    tf_label = "M5" if (bars_entry and len(bars_entry) >= period + 3) else "M15"
+
+    if len(entry_bars) < period + 3:
         return None
 
-    ema_high, ema_low = _ema_band(bars, period)
+    ema_high, ema_low = _ema_band(entry_bars, period)
 
-    # Candle konfirmasi = candle terakhir yang SUDAH close
-    conf = bars[-2]
+    # Candle konfirmasi = candle terakhir yang SUDAH close (dari M5)
+    conf = entry_bars[-2]
     eh, el = ema_high[-2], ema_low[-2]
 
     price = tick.ask if direction == Direction.BUY else tick.bid
     rr_target = settings.min_rr_ratio
-    atr = _atr(bars)
+    atr = _atr(entry_bars)
     buffer = max(atr * 0.3, 30 * point)   # SL sedikit di luar wick
 
     body = abs(conf.close - conf.open)
@@ -236,7 +238,7 @@ def analyze(
         comment=f"polybot_{direction.value.lower()}_{entry_type}",
     )
     logger.info(
-        f"[SIGNAL][{symbol}] {direction.value} [{entry_type}] price={price:.{digits}f} "
+        f"[SIGNAL][{symbol}] {direction.value} [{entry_type}] [{tf_label}] price={price:.{digits}f} "
         f"band={band_str} SL={sl} TP={tp} RR=1:{rr} (SL dist={int(sl_dist/point)}pts)"
     )
     return signal
