@@ -176,46 +176,51 @@ def analyze(
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
     if direction == Direction.BUY:
-        # Pullback turun menyentuh upper band → bounce bullish
-        # "touched" = candle low menyentuh band atas (support di uptrend)
-        touched = conf.low <= eh
         bullish = conf.close > conf.open
-        # close minimal di atas lower band (tidak harus melewati upper band)
-        close_valid = conf.close >= el
 
-        if not (touched and bullish and close_valid):
+        # Skenario A: Breakout — candle tembus ke ATAS upper band (momentum naik)
+        breakout = conf.close > eh and bullish
+        # Skenario B: Pullback — harga turun menyentuh upper band lalu bounce
+        pullback = conf.low <= eh and conf.close >= el and bullish
+
+        if not (breakout or pullback):
+            entry_type = "breakout" if not breakout else "pullback"
             logger.info(
-                f"[NO TRADE][{symbol}] BUY belum konfirmasi band {band_str} — "
-                f"touch={touched} bull={bullish} close_valid={close_valid}"
+                f"[NO TRADE][{symbol}] BUY tidak ada setup band {band_str} — "
+                f"breakout={breakout} pullback={pullback} bull={bullish}"
             )
             return None
 
+        entry_type = "breakout" if breakout else "pullback"
         sl = conf.low - buffer
         sl_dist = price - sl
         if sl_dist <= 0:
-            logger.info(f"[NO TRADE][{symbol}] BUY SL invalid")
+            logger.info(f"[NO TRADE][{symbol}] BUY SL invalid ({entry_type})")
             return None
         tp = price + sl_dist * rr_target
 
     else:  # SELL
-        # Pullback naik menyentuh upper band → rejection bearish
-        # "touched" = candle high menyentuh band atas (resistance di downtrend)
-        touched = conf.high >= eh
         bearish = conf.close < conf.open
-        # close minimal di bawah upper band
-        close_valid = conf.close <= eh
 
-        if not (touched and bearish and close_valid):
+        # Skenario A: Breakout — candle tembus ke BAWAH lower band (momentum turun)
+        breakout = conf.close < el and bearish
+        # Skenario B: Pullback — harga naik menyentuh upper band lalu rejection
+        pullback = conf.high >= eh and conf.close <= eh and bearish
+
+        if not (breakout or pullback):
             logger.info(
-                f"[NO TRADE][{symbol}] SELL belum konfirmasi band {band_str} — "
-                f"touch={touched} bear={bearish} close_valid={close_valid}"
+                f"[NO TRADE][{symbol}] SELL tidak ada setup band {band_str} — "
+                f"breakout={breakout} pullback={pullback} bear={bearish}"
             )
             return None
 
-        sl = conf.high + buffer
+        entry_type = "breakout" if breakout else "pullback"
+        # SL: di atas wick untuk pullback, di atas upper band untuk breakout
+        sl_ref = conf.high if pullback else max(conf.high, eh)
+        sl = sl_ref + buffer
         sl_dist = sl - price
         if sl_dist <= 0:
-            logger.info(f"[NO TRADE][{symbol}] SELL SL invalid")
+            logger.info(f"[NO TRADE][{symbol}] SELL SL invalid ({entry_type})")
             return None
         tp = price - sl_dist * rr_target
 
@@ -228,10 +233,10 @@ def analyze(
         lot=settings.lot_size,
         sl=sl,
         tp=tp,
-        comment=f"polybot_{direction.value.lower()}_emaband",
+        comment=f"polybot_{direction.value.lower()}_{entry_type}",
     )
     logger.info(
-        f"[SIGNAL][{symbol}] {direction.value} price={price:.{digits}f} "
+        f"[SIGNAL][{symbol}] {direction.value} [{entry_type}] price={price:.{digits}f} "
         f"band={band_str} SL={sl} TP={tp} RR=1:{rr} (SL dist={int(sl_dist/point)}pts)"
     )
     return signal
