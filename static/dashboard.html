@@ -381,15 +381,26 @@ tr:hover td{background:#1c2128}
     <span><span style="display:inline-block;width:12px;height:3px;background:#ef4444;border-radius:2px;vertical-align:middle"></span> Band Bawah (EMA50 L)</span>
   </div>
 
-  <!-- Chart container -->
-  <div id="chart-container" style="width:100%;height:420px;border-radius:10px;overflow:hidden;border:1px solid var(--border)"></div>
+  <!-- Main chart -->
+  <div id="chart-container" style="width:100%;height:340px;border-radius:10px 10px 0 0;overflow:hidden;border:1px solid var(--border);border-bottom:none"></div>
+
+  <!-- RSI pane -->
+  <div style="position:relative">
+    <div style="position:absolute;top:4px;left:8px;font-size:10px;color:var(--muted);z-index:2">RSI (14)</div>
+    <div style="position:absolute;top:4px;right:8px;font-size:10px;z-index:2">
+      <span style="color:var(--red)">OB 70</span> · <span style="color:var(--green)">OS 30</span>
+    </div>
+    <div id="rsi-container" style="width:100%;height:100px;border-radius:0 0 10px 10px;overflow:hidden;border:1px solid var(--border)"></div>
+  </div>
 
   <!-- Info bar -->
-  <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted);flex-wrap:wrap" id="chart-infobar">
+  <div style="display:flex;gap:12px;margin-top:10px;font-size:11px;color:var(--muted);flex-wrap:wrap">
     <span>Band Atas: <b id="ci-bh" style="color:#3b82f6">–</b></span>
     <span>Band Bawah: <b id="ci-bl" style="color:#ef4444">–</b></span>
+    <span>RSI: <b id="ci-rsi">–</b></span>
+    <span>ATR: <b id="ci-atr" style="color:var(--yellow)">–</b> pts</span>
     <span>Trend: <b id="ci-trend">–</b></span>
-    <span>Update: <b id="ci-update" style="color:var(--green)">–</b></span>
+    <span style="margin-left:auto">Update: <b id="ci-update" style="color:var(--green)">–</b></span>
   </div>
 
 </div>
@@ -1473,87 +1484,113 @@ window.showPage = function(name) {
 
 // ── Chart Page ────────────────────────────────────────────────────────────────
 
-let _chart = null;
-let _candleSeries = null;
-let _bandHighSeries = null;
-let _bandLowSeries = null;
+let _chart = null, _rsiChart = null;
+let _candleSeries = null, _bandHighSeries = null, _bandLowSeries = null;
+let _rsiSeries = null, _rsiOB = null, _rsiOS = null;
 let _chartLimit = 50;
 let _chartTimer = null;
 
-function initChart() {
-  const container = document.getElementById('chart-container');
-  if (_chart) { _chart.remove(); _chart = null; }
+const CHART_OPTS = (h) => ({
+  width: 0,
+  height: h,
+  layout: { background: { color: '#0d1117' }, textColor: '#8b949e' },
+  grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  rightPriceScale: { borderColor: '#30363d' },
+  timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
+  handleScale: { mouseWheel: true, pinch: true },
+});
 
-  _chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth,
-    height: 420,
-    layout: {
-      background: { color: '#0d1117' },
-      textColor: '#8b949e',
-    },
-    grid: {
-      vertLines: { color: '#21262d' },
-      horzLines: { color: '#21262d' },
-    },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: '#30363d' },
-    timeScale: {
-      borderColor: '#30363d',
-      timeVisible: true,
-      secondsVisible: false,
-    },
-  });
+function initChart() {
+  const mc = document.getElementById('chart-container');
+  const rc = document.getElementById('rsi-container');
+  if (_chart)    { _chart.remove();    _chart    = null; }
+  if (_rsiChart) { _rsiChart.remove(); _rsiChart = null; }
+
+  // ── Main chart ────────────────────────────────────────────────────
+  _chart = LightweightCharts.createChart(mc, { ...CHART_OPTS(340), width: mc.clientWidth });
 
   _candleSeries = _chart.addCandlestickSeries({
-    upColor:   '#3fb950',
-    downColor: '#f85149',
-    borderUpColor:   '#3fb950',
-    borderDownColor: '#f85149',
-    wickUpColor:   '#3fb950',
-    wickDownColor: '#f85149',
+    upColor: '#3fb950', downColor: '#f85149',
+    borderUpColor: '#3fb950', borderDownColor: '#f85149',
+    wickUpColor: '#3fb950', wickDownColor: '#f85149',
+  });
+  _bandHighSeries = _chart.addLineSeries({ color:'#3b82f6', lineWidth:2, priceLineVisible:false, lastValueVisible:true, title:'Band H' });
+  _bandLowSeries  = _chart.addLineSeries({ color:'#ef4444', lineWidth:2, priceLineVisible:false, lastValueVisible:true, title:'Band L' });
+
+  // ── RSI pane ──────────────────────────────────────────────────────
+  _rsiChart = LightweightCharts.createChart(rc, { ...CHART_OPTS(100), width: rc.clientWidth,
+    rightPriceScale: { borderColor:'#30363d', scaleMargins: { top:0.1, bottom:0.1 } },
+    timeScale: { borderColor:'#30363d', timeVisible:false },
+  });
+  _rsiSeries = _rsiChart.addLineSeries({ color:'#bc8cff', lineWidth:2, priceLineVisible:false, lastValueVisible:true });
+  // Overbought / Oversold garis referensi
+  _rsiOB = _rsiChart.addLineSeries({ color:'rgba(248,81,73,0.4)',  lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
+  _rsiOS = _rsiChart.addLineSeries({ color:'rgba(63,185,80,0.4)',  lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
+
+  // Sync timescale main ↔ RSI
+  _chart.timeScale().subscribeVisibleLogicalRangeChange(r => {
+    if (r) _rsiChart.timeScale().setVisibleLogicalRange(r);
+  });
+  _rsiChart.timeScale().subscribeVisibleLogicalRangeChange(r => {
+    if (r) _chart.timeScale().setVisibleLogicalRange(r);
   });
 
-  _bandHighSeries = _chart.addLineSeries({
-    color: '#3b82f6',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: true,
-    title: 'Band H',
-  });
-
-  _bandLowSeries = _chart.addLineSeries({
-    color: '#ef4444',
-    lineWidth: 2,
-    priceLineVisible: false,
-    lastValueVisible: true,
-    title: 'Band L',
-  });
-
-  // Responsive resize
+  // Responsive
   const ro = new ResizeObserver(() => {
-    _chart.applyOptions({ width: container.clientWidth });
+    _chart.applyOptions({ width: mc.clientWidth });
+    _rsiChart.applyOptions({ width: rc.clientWidth });
   });
-  ro.observe(container);
+  ro.observe(mc); ro.observe(rc);
 }
 
 async function updateChart() {
   const data = await api('/ea/bars?limit=' + _chartLimit);
   if (!data || !data.candles || data.candles.length === 0) return;
 
-  const candles   = data.candles.map(c => ({ time: c.time, open: c.open, high: c.high, low: c.low, close: c.close }));
-  const bandHigh  = data.candles.map(c => ({ time: c.time, value: c.band_high }));
-  const bandLow   = data.candles.map(c => ({ time: c.time, value: c.band_low  }));
+  const C = data.candles;
+  const validRsi = C.filter(c => c.rsi != null);
 
-  _candleSeries.setData(candles);
-  _bandHighSeries.setData(bandHigh);
-  _bandLowSeries.setData(bandLow);
+  // Candlestick
+  _candleSeries.setData(C.map(c => ({ time:c.time, open:c.open, high:c.high, low:c.low, close:c.close })));
+
+  // EMA50 band
+  _bandHighSeries.setData(C.map(c => ({ time:c.time, value:c.band_high })));
+  _bandLowSeries.setData( C.map(c => ({ time:c.time, value:c.band_low  })));
+
+  // Entry markers dari trade log
+  if (data.markers && data.markers.length > 0) {
+    const marks = data.markers
+      .filter(m => m.time >= C[0].time)
+      .map(m => ({
+        time:     m.time,
+        position: m.direction === 'BUY' ? 'belowBar' : 'aboveBar',
+        color:    m.profit > 0 ? '#3fb950' : m.profit < 0 ? '#f85149' : '#e3b341',
+        shape:    m.direction === 'BUY' ? 'arrowUp' : 'arrowDown',
+        text:     (m.direction === 'BUY' ? '▲' : '▼') + (m.profit !== 0 ? ' ' + (m.profit > 0 ? '+' : '') + m.profit : ''),
+      }));
+    _candleSeries.setMarkers(marks);
+  }
+
+  // RSI
+  if (validRsi.length > 1) {
+    _rsiSeries.setData(validRsi.map(c => ({ time:c.time, value:c.rsi })));
+    const t0 = validRsi[0].time, tN = validRsi[validRsi.length-1].time;
+    _rsiOB.setData([{ time:t0, value:70 }, { time:tN, value:70 }]);
+    _rsiOS.setData([{ time:t0, value:30 }, { time:tN, value:30 }]);
+  }
 
   // Info bar
-  const last = data.candles[data.candles.length - 1];
+  const last = C[C.length - 1];
   const bh = last.band_high, bl = last.band_low, close = last.close;
   let trend = 'NETRAL', tcolor = 'var(--muted)';
   if (close > bh) { trend = '▲ BUY';  tcolor = 'var(--green)'; }
   if (close < bl) { trend = '▼ SELL'; tcolor = 'var(--red)'; }
+
+  const lastRsi = validRsi.length ? validRsi[validRsi.length-1].rsi : null;
+  const rsiColor = lastRsi == null ? 'var(--muted)' : lastRsi > 70 ? 'var(--red)' : lastRsi < 30 ? 'var(--green)' : 'var(--purple)';
+  const rsiLabel = lastRsi == null ? '–' : lastRsi.toFixed(1) + (lastRsi > 70 ? ' OB' : lastRsi < 30 ? ' OS' : '');
+  const lastAtr  = C.slice().reverse().find(c => c.atr_pts != null);
 
   document.getElementById('chart-symbol').textContent = data.symbol;
   document.getElementById('chart-price').textContent  = data.price;
@@ -1561,6 +1598,9 @@ async function updateChart() {
   document.getElementById('chart-spread').style.color = data.spread > 50 ? 'var(--red)' : 'var(--green)';
   document.getElementById('ci-bh').textContent    = bh;
   document.getElementById('ci-bl').textContent    = bl;
+  document.getElementById('ci-rsi').textContent   = rsiLabel;
+  document.getElementById('ci-rsi').style.color   = rsiColor;
+  document.getElementById('ci-atr').textContent   = lastAtr ? lastAtr.atr_pts : '–';
   document.getElementById('ci-trend').textContent = trend;
   document.getElementById('ci-trend').style.color = tcolor;
   document.getElementById('ci-update').textContent = new Date().toLocaleTimeString('id-ID');

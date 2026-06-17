@@ -302,44 +302,110 @@ async def patch_config(updates: dict):
 
 @app.get("/ea/bars")
 async def ea_bars(symbol: str = None, limit: int = 100):
-    """OHLCV bars + EMA50 band untuk chart realtime."""
+    """OHLCV bars + EMA50 band + RSI + ATR + Volume untuk chart realtime."""
     import numpy as np
+    import json
+    from pathlib import Path
 
     sym = symbol or (list(_cache["symbols"].keys())[0] if _cache["symbols"] else None)
     if not sym:
         raise HTTPException(404, "No symbol data")
 
-    bars = _cache.get("bars", {}).get(sym, [])
-    meta = _cache["symbols"].get(sym)
-    tick = _cache["ticks"].get(sym)
-    if not bars or not meta:
+    # Ambil lebih banyak bar untuk perhitungan indikator yang akurat
+    all_bars = _cache.get("bars", {}).get(sym, [])
+    meta     = _cache["symbols"].get(sym)
+    tick     = _cache["ticks"].get(sym)
+    if not all_bars or not meta:
         raise HTTPException(404, "No bar data")
 
-    bars = bars[-limit:]
+    # Gunakan semua bar untuk hitung indikator, tampilkan hanya `limit` terakhir
+    closes = np.array([b.close for b in all_bars], dtype=float)
+    highs  = np.array([b.high  for b in all_bars], dtype=float)
+    lows   = np.array([b.low   for b in all_bars], dtype=float)
 
-    highs  = np.array([b.high  for b in bars])
-    lows   = np.array([b.low   for b in bars])
-
-    def ema(arr, p):
+    def _ema(arr, p):
         k, e = 2/(p+1), np.zeros_like(arr, dtype=float)
         e[0] = arr[0]
         for i in range(1, len(arr)):
             e[i] = arr[i]*k + e[i-1]*(1-k)
         return e
 
-    band_high = ema(highs, 50)
-    band_low  = ema(lows,  50)
+    # EMA50 band
+    band_high = _ema(highs, 50)
+    band_low  = _ema(lows,  50)
+
+    # RSI (14)
+    rsi_period = 14
+    rsi_vals = np.full(len(closes), float('nan'))
+    if len(closes) > rsi_period:
+        deltas = np.diff(closes)
+        gains  = np.where(deltas > 0, deltas, 0.0)
+        losses = np.where(deltas < 0, -deltas, 0.0)
+        avg_g  = np.mean(gains[:rsi_period])
+        avg_l  = np.mean(losses[:rsi_period])
+        for i in range(rsi_period, len(closes) - 1):
+            avg_g = (avg_g * (rsi_period - 1) + gains[i]) / rsi_period
+            avg_l = (avg_l * (rsi_period - 1) + losses[i]) / rsi_period
+            rs = avg_g / avg_l if avg_l != 0 else 100
+            rsi_vals[i + 1] = round(100 - 100 / (1 + rs), 2)
+
+    # ATR (14) — rolling
+    atr_period = 14
+    atr_vals = np.full(len(closes), float('nan'))
+    if len(closes) > atr_period + 1:
+        trs = np.array([
+            max(highs[i] - lows[i],
+                abs(highs[i] - closes[i-1]),
+                abs(lows[i]  - closes[i-1]))
+            for i in range(1, len(closes))
+        ])
+        for i in range(atr_period, len(trs)):
+            atr_vals[i + 1] = round(float(np.mean(trs[i-atr_period+1:i+1])), meta.digits)
+
+    # Ambil trade log untuk entry markers
+    markers = []
+    trade_log = Path("data/trade_log.json")
+    if trade_log.exists():
+        try:
+            trades = json.loads(trade_log.read_text())
+            bar_times = set(int(b.time) for b in all_bars if hasattr(b, 'time') and b.time)
+            for t in trades[-50:]:  # 50 trade terakhir
+                entry_time = t.get("entry_time_ts") or t.get("open_time")
+                if not entry_time:
+                    continue
+                direction = t.get("direction", t.get("type", "")).upper()
+                profit    = t.get("profit", 0) or 0
+                markers.append({
+                    "time":      int(entry_time),
+                    "direction": direction,
+                    "profit":    round(profit, 2),
+                    "price":     t.get("entry_price", t.get("open_price", 0)),
+                })
+        except Exception:
+            pass
+
+    # Slice ke limit terakhir
+    start = max(0, len(all_bars) - limit)
+    bars_slice = all_bars[start:]
 
     candles = []
-    for i, b in enumerate(bars):
+    for i, b in enumerate(bars_slice):
+        gi = start + i  # global index
+        t  = int(b.time) if hasattr(b, "time") and b.time else gi
+        rsi = None if np.isnan(rsi_vals[gi]) else float(rsi_vals[gi])
+        atr = None if np.isnan(atr_vals[gi]) else float(atr_vals[gi])
+        atr_pts = int(atr / meta.point) if atr else None
         candles.append({
-            "time":  int(b.time) if hasattr(b, "time") and b.time else i,
-            "open":  round(b.open,  meta.digits),
-            "high":  round(b.high,  meta.digits),
-            "low":   round(b.low,   meta.digits),
-            "close": round(b.close, meta.digits),
-            "band_high": round(float(band_high[i]), meta.digits),
-            "band_low":  round(float(band_low[i]),  meta.digits),
+            "time":      t,
+            "open":      round(b.open,  meta.digits),
+            "high":      round(b.high,  meta.digits),
+            "low":       round(b.low,   meta.digits),
+            "close":     round(b.close, meta.digits),
+            "band_high": round(float(band_high[gi]), meta.digits),
+            "band_low":  round(float(band_low[gi]),  meta.digits),
+            "rsi":       rsi,
+            "atr":       atr,
+            "atr_pts":   atr_pts,
         })
 
     spread = int((tick.ask - tick.bid) / meta.point) if tick else 0
@@ -349,6 +415,7 @@ async def ea_bars(symbol: str = None, limit: int = 100):
         "symbol":  sym,
         "digits":  meta.digits,
         "candles": candles,
+        "markers": markers,
         "price":   price,
         "spread":  spread,
     }
