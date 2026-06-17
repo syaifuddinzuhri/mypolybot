@@ -174,6 +174,37 @@ async def health():
     return {"status": "ok", "symbols": list(_cache["symbols"].keys())}
 
 
+@app.get("/config")
+async def get_config():
+    """Expose settings aktif dari .env untuk dashboard."""
+    return {
+        "lot_size": settings.lot_size,
+        "max_spread_points": settings.max_spread_points,
+        "min_rr_ratio": settings.min_rr_ratio,
+        "daily_loss_percent": settings.daily_loss_percent,
+        "entry_interval_seconds": settings.entry_interval_seconds,
+        "ema_slow": settings.ema_slow,
+        "loss_cooldown_enabled": settings.loss_cooldown_enabled,
+        "loss_cooldown_trigger": settings.loss_cooldown_trigger,
+        "loss_cooldown_minutes": settings.loss_cooldown_minutes,
+        "trailing_sl_enabled": settings.trailing_sl_enabled,
+        "trailing_sl_points": settings.trailing_sl_points,
+        "break_even_enabled": settings.break_even_enabled,
+        "break_even_trigger_points": settings.break_even_trigger_points,
+        "partial_close_enabled": settings.partial_close_enabled,
+        "partial_close_trigger_points": settings.partial_close_trigger_points,
+        "partial_close_ratio": settings.partial_close_ratio,
+        "eod_close_enabled": settings.eod_close_enabled,
+        "eod_hour": settings.eod_hour,
+        "eod_minute": settings.eod_minute,
+        "session_filter_enabled": settings.session_filter_enabled,
+        "session_auto": settings.session_auto,
+        "max_positions_per_symbol": settings.max_positions_per_symbol,
+        "news_filter_enabled": settings.news_filter_enabled,
+        "dxy_filter_enabled": settings.dxy_filter_enabled,
+    }
+
+
 @app.get("/logs/recent")
 async def logs_recent(n: int = 200):
     """Ambil N baris log terakhir."""

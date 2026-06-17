@@ -400,16 +400,8 @@ tr:hover td{background:#1c2128}
 
   <!-- Filter & Proteksi -->
   <div class="card">
-    <div class="card-title"><i class="ti ti-shield-check"></i> Filter & Proteksi</div>
-    <div class="row"><span class="row-label"><i class="ti ti-wave-sine"></i> Spread</span><span class="row-val">≤ 50 pts (block Asia session)</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-clock"></i> Session</span><span class="row-val">Auto — London 14:00 + NY 20:00 WIB</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-trending-down"></i> Daily Loss</span><span class="row-val">Stop 3% dari balance (dinamis)</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-player-pause"></i> Cooldown</span><span class="row-val">2 loss berturut → pause 60 menit</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-layers-intersect"></i> Max Posisi</span><span class="row-val">1 per symbol</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-arrows-move"></i> Trailing SL</span><span class="row-val">150 pts mengikuti profit</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-equal"></i> Break Even</span><span class="row-val">Geser SL ke entry saat profit 80 pts</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-scissors"></i> Partial Close</span><span class="row-val">Tutup 50% posisi saat profit 120 pts</span></div>
-    <div class="row"><span class="row-label"><i class="ti ti-calendar-off"></i> EOD Close</span><span class="row-val">Tutup semua posisi 23:50 UTC</span></div>
+    <div class="card-title"><i class="ti ti-shield-check"></i> Filter & Proteksi <span style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:400;text-transform:none">dari .env aktif</span></div>
+    <div id="about-filters"><div class="empty"><i class="ti ti-loader"></i> Loading config...</div></div>
   </div>
 
   <!-- Sesi Trading -->
@@ -1317,7 +1309,34 @@ const origShowPage = showPage;
 window.showPage = function(name) {
   origShowPage(name);
   if (name === 'terminal' && !termEs) termConnect();
+  if (name === 'about') loadAbout();
 };
+
+// ── About Page ────────────────────────────────────────────────────────────────
+async function loadAbout() {
+  const cfg = await api('/config');
+  if (!cfg) return;
+
+  const on  = v => v ? `<span style="color:var(--green)">ON</span>` : `<span style="color:var(--muted)">OFF</span>`;
+  const val = v => `<span style="font-weight:700">${v}</span>`;
+
+  document.getElementById('about-filters').innerHTML = `
+    <div class="row"><span class="row-label"><i class="ti ti-wave-sine"></i> Spread maks</span><span class="row-val">${val('≤ ' + cfg.max_spread_points + ' pts')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-clock"></i> Session filter</span><span class="row-val">${on(cfg.session_filter_enabled)} ${cfg.session_auto ? '· Auto' : '· Manual'}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-trending-down"></i> Daily loss stop</span><span class="row-val">${val(cfg.daily_loss_percent + '% dari balance')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-player-pause"></i> Cooldown</span><span class="row-val">${on(cfg.loss_cooldown_enabled)} · ${val(cfg.loss_cooldown_trigger + ' loss')} → pause ${val(cfg.loss_cooldown_minutes + ' menit')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-layers-intersect"></i> Max posisi</span><span class="row-val">${val(cfg.max_positions_per_symbol + ' per symbol')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-chart-arrows-vertical"></i> RR minimum</span><span class="row-val">${val('1:' + cfg.min_rr_ratio)}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-arrows-move"></i> Trailing SL</span><span class="row-val">${on(cfg.trailing_sl_enabled)} · ${val(cfg.trailing_sl_points + ' pts')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-equal"></i> Break Even</span><span class="row-val">${on(cfg.break_even_enabled)} · profit ${val(cfg.break_even_trigger_points + ' pts')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-scissors"></i> Partial Close</span><span class="row-val">${on(cfg.partial_close_enabled)} · ${val((cfg.partial_close_ratio*100).toFixed(0) + '%')} saat ${val(cfg.partial_close_trigger_points + ' pts')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-calendar-off"></i> EOD Close</span><span class="row-val">${on(cfg.eod_close_enabled)} · ${val(String(cfg.eod_hour).padStart(2,'0') + ':' + String(cfg.eod_minute).padStart(2,'0') + ' UTC')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-news"></i> News filter</span><span class="row-val">${on(cfg.news_filter_enabled)}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-currency-dollar"></i> DXY filter</span><span class="row-val">${on(cfg.dxy_filter_enabled)}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-clock-play"></i> Entry interval</span><span class="row-val">${val(cfg.entry_interval_seconds + ' detik')}</span></div>
+    <div class="row"><span class="row-label"><i class="ti ti-coin"></i> Lot size</span><span class="row-val">${val(cfg.lot_size)}</span></div>
+  `;
+}
 </script>
 </body>
 </html>
