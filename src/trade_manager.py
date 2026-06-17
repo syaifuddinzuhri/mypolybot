@@ -333,22 +333,29 @@ def _pyramid_commands(
         if new_lot < settings.pyramid_min_lot:
             new_lot = settings.pyramid_min_lot
 
-        # SL pyramid ikut SL posisi awal (sudah di-BE atau trailing)
-        # TP sama dengan posisi awal
+        # SL ikut posisi awal (sudah BE/trailing), TP proporsional dari entry pyramid
+        sl_dist = abs(entry_price - pos.sl)
+        if sl_dist <= 0:
+            continue
+        if pos.type == "buy":
+            tp_new = round(entry_price + sl_dist * settings.min_rr_ratio, 5)
+        else:
+            tp_new = round(entry_price - sl_dist * settings.min_rr_ratio, 5)
+
         action = "BUY" if pos.type == "buy" else "SELL"
         cmds.append(EACommand(
             action=action,
             symbol=pos.symbol,
             lot=new_lot,
             sl=pos.sl,
-            tp=pos.tp,
+            tp=tp_new,
             comment=f"pyramid_L{current_level + 1}_t{pos.ticket}",
         ))
         pyramid_counts[pos.ticket] = current_level + 1
         logger.info(
             f"[PYRAMID][{pos.symbol}] Level {current_level + 1} "
             f"ticket={pos.ticket} profit={profit_pts/point:.0f}pts "
-            f"→ {action} {new_lot} lot sl={pos.sl} tp={pos.tp}"
+            f"→ {action} {new_lot} lot sl={pos.sl} tp={tp_new}"
         )
 
     return cmds
