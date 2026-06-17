@@ -541,6 +541,19 @@ async def bot_resume():
     return {"status": "running"}
 
 
+@app.post("/bot/reset-daily")
+async def bot_reset_daily():
+    """Reset today_pnl dan loss_count ke 0 (untuk testing atau hari baru manual)."""
+    from .bot import get_state
+    from .state_store import save as save_state
+    state = get_state()
+    state["today_pnl"] = 0.0
+    state["today_loss_count"] = 0
+    save_state(state)
+    logger.info("[BOT] Daily PnL & loss count di-reset manual")
+    return {"status": "ok", "today_pnl": 0.0, "today_loss_count": 0}
+
+
 @app.get("/report")
 async def weekly_report(weeks_back: int = 1):
     """Laporan performa mingguan bot."""

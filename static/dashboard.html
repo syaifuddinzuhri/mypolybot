@@ -577,10 +577,20 @@ tr:hover td{background:#1c2128}
     <div class="cfg-row"><label>Lot Size</label><input type="number" id="cfg-lot_size" step="0.01" min="0.01"></div>
     <div class="cfg-row"><label>Max Spread (pts)</label><input type="number" id="cfg-max_spread_points" step="1" min="10"></div>
     <div class="cfg-row"><label>Min RR Ratio</label><input type="number" id="cfg-min_rr_ratio" step="0.1" min="1"></div>
+    <div class="cfg-row">
+      <label>Daily Loss Stop</label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="cfg-daily_loss_enabled" style="width:16px;height:16px">
+        <span style="font-size:11px;color:var(--muted)">Enable</span>
+      </label>
+    </div>
     <div class="cfg-row"><label>Daily Loss Stop (%)</label><input type="number" id="cfg-daily_loss_percent" step="0.5" min="0.5"></div>
     <div class="cfg-row"><label>Entry Interval (detik)</label><input type="number" id="cfg-entry_interval_seconds" step="30" min="30"></div>
     <div class="cfg-row"><label>Max Posisi / Symbol</label><input type="number" id="cfg-max_positions_per_symbol" step="1" min="1"></div>
     <button class="cfg-save-btn" onclick="saveConfig('trading')">Simpan Trading</button>
+    <button onclick="resetDailyData()" style="margin-top:8px;width:100%;padding:8px;border-radius:6px;border:1px solid var(--yellow);background:transparent;color:var(--yellow);cursor:pointer;font-size:12px;font-weight:600">
+      🔄 Reset Daily Loss & PnL Data
+    </button>
   </div>
 
   <!-- Cooldown -->
@@ -1741,7 +1751,23 @@ function cfgGet(id) {
   const el = document.getElementById('cfg-' + id);
   if (!el) return null;
   if (el.classList.contains('cfg-toggle')) return el.dataset.val === 'true';
+  if (el.type === 'checkbox') return el.checked ? 'true' : 'false';
   return el.value;
+}
+
+async function resetDailyData() {
+  if (!confirm('Reset data daily loss & PnL ke 0?\nBot bisa entry lagi meski sudah kena daily stop.')) return;
+  const res = await fetch('/bot/reset-daily', {method:'POST'}).then(r => r.json()).catch(() => null);
+  const toast = document.getElementById('cfg-toast');
+  if (res && res.status === 'ok') {
+    toast.textContent = '✅ Daily data berhasil di-reset';
+    toast.style.background = 'var(--green)';
+  } else {
+    toast.textContent = '❌ Gagal reset';
+    toast.style.background = 'var(--red)';
+  }
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, 3000);
 }
 
 async function testTelegram() {
@@ -1774,6 +1800,8 @@ async function loadConfig() {
   cfgSet('lot_size', cfg.lot_size);
   cfgSet('max_spread_points', cfg.max_spread_points);
   cfgSet('min_rr_ratio', cfg.min_rr_ratio);
+  const dlChk = document.getElementById('cfg-daily_loss_enabled');
+  if (dlChk) dlChk.checked = !!cfg.daily_loss_enabled;
   cfgSet('daily_loss_percent', cfg.daily_loss_percent);
   cfgSet('entry_interval_seconds', cfg.entry_interval_seconds);
   cfgSet('max_positions_per_symbol', cfg.max_positions_per_symbol);
@@ -1800,7 +1828,7 @@ async function loadConfig() {
 }
 
 const CFG_GROUPS = {
-  trading:  ['lot_size','max_spread_points','min_rr_ratio','daily_loss_percent','entry_interval_seconds','max_positions_per_symbol'],
+  trading:  ['lot_size','max_spread_points','min_rr_ratio','daily_loss_enabled','daily_loss_percent','entry_interval_seconds','max_positions_per_symbol'],
   cooldown: ['loss_cooldown_enabled','loss_cooldown_trigger','loss_cooldown_minutes'],
   trailing: ['trailing_sl_enabled','trailing_sl_points'],
   breakeven:['break_even_enabled','break_even_trigger_points'],

@@ -162,7 +162,7 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
     if not is_trading_session():
         return
 
-    if not check_daily_loss(payload.account, _state["today_pnl"]):
+    if settings.daily_loss_enabled and not check_daily_loss(payload.account, _state["today_pnl"]):
         notify_daily_stop(
             payload.account.balance,
             abs(_state["today_pnl"]),
