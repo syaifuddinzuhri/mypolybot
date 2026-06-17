@@ -77,7 +77,8 @@ def notify_entry(symbol: str, direction: str, price: float, sl: float,
     icon = "🟢" if direction == "BUY" else "🔴"
     p_lo = min(price, price_high) if price_high else price
     p_hi = max(price, price_high) if price_high else price
-    entry_str = f"@{p_lo:.3f}-{p_hi:.3f}" if price_high else f"@{price:.3f}"
+    fmt = lambda v: f"{v:.3f}".rstrip('0').rstrip('.')
+    entry_str = f"@{fmt(p_lo)}-{fmt(p_hi)}" if price_high else f"@{fmt(price)}"
     tag = f" <i>({entry_type})</i>" if entry_type else ""
 
     tp1_pts = int(abs(tp1 - price) / point) if (tp1 and point) else 0
@@ -86,14 +87,14 @@ def notify_entry(symbol: str, direction: str, price: float, sl: float,
     lines = [
         f"{icon} <b>{symbol} {dir_label}</b> {entry_str}{tag}",
         f"",
-        f"🚫 StopLose     : <code>{sl}</code>  <i>({sl_pts} pts / {_pips(sl_pts)})</i>",
+        f"🚫 StopLose     : <code>{fmt(sl)}</code>  <i>({sl_pts} pts / {_pips(sl_pts)})</i>",
         f"",
     ]
     if tp1:
-        lines.append(f"🔵 TakeProfit 1 : <code>{tp1}</code>  <i>({tp1_pts} pts / {_pips(tp1_pts)})</i>")
+        lines.append(f"🔵 TakeProfit 1 : <code>{fmt(tp1)}</code>  <i>({tp1_pts} pts / {_pips(tp1_pts)})</i>")
     if tp2:
-        lines.append(f"🔵 TakeProfit 2 : <code>{tp2}</code>  <i>({tp2_pts} pts / {_pips(tp2_pts)})</i>")
-    lines.append(f"🎯 TakeProfit 3 : <code>{tp}</code>  <i>({tp_pts} pts / {_pips(tp_pts)})</i>")
+        lines.append(f"🔵 TakeProfit 2 : <code>{fmt(tp2)}</code>  <i>({tp2_pts} pts / {_pips(tp2_pts)})</i>")
+    lines.append(f"🎯 TakeProfit 3 : <code>{fmt(tp)}</code>  <i>({tp_pts} pts / {_pips(tp_pts)})</i>")
     lines.append(f"")
     lines.append(f"📦 Lot : {lot}  |  ⏰ {_now_wib()}")
     send("\n".join(lines))
