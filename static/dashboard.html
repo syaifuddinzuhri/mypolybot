@@ -740,14 +740,33 @@ async function loadAccount() {
   document.getElementById('status-badge').className = 'badge badge-green';
   document.getElementById('status-badge').textContent = 'Online';
 
-  const bCls = d.balance > 200000 ? 'green' : d.balance > 100000 ? 'yellow' : 'red';
-  const mlCls = d.margin_level > 500 ? 'green' : d.margin_level > 200 ? 'yellow' : 'red';
+  const bCls  = d.balance > 200000 ? 'green' : d.balance > 100000 ? 'yellow' : 'red';
+  const mlCls = (d.margin_level||0) > 500 ? 'green' : (d.margin_level||0) > 200 ? 'yellow' : 'red';
+  const typeBadge = d.account_type === 'Demo'
+    ? `<span class="badge badge-yellow">Demo</span>`
+    : `<span class="badge badge-green">Real</span>`;
+
   el.innerHTML = `
+    <!-- Broker info -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border2)">
+      <div>
+        <div style="font-weight:700;font-size:13px;color:var(--text)">${d.broker || '–'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${d.server || '–'}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:4px">
+          ${typeBadge}
+          <span class="badge badge-blue">1:${d.leverage || '–'}</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">#${d.login}</div>
+      </div>
+    </div>
+    <!-- Balance metrics -->
     <div class="metric-grid">
-      <div class="metric"><div class="metric-val ${bCls}">${fmt(d.balance)}</div><div class="metric-label">Balance (IDR)</div></div>
-      <div class="metric"><div class="metric-val">${fmt(d.equity)}</div><div class="metric-label">Equity (IDR)</div></div>
+      <div class="metric"><div class="metric-val ${bCls}">${fmt(d.balance)}</div><div class="metric-label">Balance (${d.currency})</div></div>
+      <div class="metric"><div class="metric-val">${fmt(d.equity)}</div><div class="metric-label">Equity (${d.currency})</div></div>
       <div class="metric"><div class="metric-val">${fmt(d.free_margin)}</div><div class="metric-label">Free Margin</div></div>
-      <div class="metric"><div class="metric-val ${mlCls}">${fmt(d.margin_level,1)}%</div><div class="metric-label">Margin Level</div></div>
+      <div class="metric"><div class="metric-val ${mlCls}">${(d.margin_level||0).toFixed(1)}%</div><div class="metric-label">Margin Level</div></div>
     </div>
     ${row('Floating P&L', fmtPnl(d.profit), 'trending-up')}
   `;

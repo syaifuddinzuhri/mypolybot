@@ -121,16 +121,26 @@ void PushRates()
    );
 
    // Account JSON
+   string accType = (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_DEMO) ? "Demo" : "Real";
    string accJson = StringFormat(
       "{\"login\":%d,\"balance\":%.2f,\"equity\":%.2f,"
-      "\"margin\":%.2f,\"free_margin\":%.2f,\"profit\":%.2f,\"currency\":\"%s\"}",
+      "\"margin\":%.2f,\"free_margin\":%.2f,\"profit\":%.2f,\"currency\":\"%s\","
+      "\"broker\":\"%s\",\"server\":\"%s\",\"leverage\":%d,\"account_type\":\"%s\","
+      "\"margin_level\":%.2f}",
       (long)AccountInfoInteger(ACCOUNT_LOGIN),
       AccountInfoDouble(ACCOUNT_BALANCE),
       AccountInfoDouble(ACCOUNT_EQUITY),
       AccountInfoDouble(ACCOUNT_MARGIN),
       AccountInfoDouble(ACCOUNT_MARGIN_FREE),
       AccountInfoDouble(ACCOUNT_PROFIT),
-      AccountInfoString(ACCOUNT_CURRENCY)
+      AccountInfoString(ACCOUNT_CURRENCY),
+      AccountInfoString(ACCOUNT_COMPANY),
+      AccountInfoString(ACCOUNT_SERVER),
+      (int)AccountInfoInteger(ACCOUNT_LEVERAGE),
+      accType,
+      AccountInfoDouble(ACCOUNT_MARGIN) > 0
+         ? AccountInfoDouble(ACCOUNT_EQUITY) / AccountInfoDouble(ACCOUNT_MARGIN) * 100
+         : 0.0
    );
 
    // Positions JSON

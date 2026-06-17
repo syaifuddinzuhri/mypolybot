@@ -50,6 +50,11 @@ class AccountInfo(BaseModel):
     free_margin: float
     profit: float
     currency: str
+    broker: str = ""
+    server: str = ""
+    leverage: int = 0
+    account_type: str = ""
+    margin_level: float = 0.0
 
 
 class Position(BaseModel):
