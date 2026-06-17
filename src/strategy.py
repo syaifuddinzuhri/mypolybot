@@ -178,18 +178,15 @@ def analyze(
     band_str = f"[{el:.{digits}f}, {eh:.{digits}f}]"
 
     if direction == Direction.BUY:
-        bullish = conf.close > conf.open
-
-        # Skenario A: Breakout — candle tembus ke ATAS upper band (momentum naik)
-        breakout = conf.close > eh and bullish
-        # Skenario B: Pullback — harga turun menyentuh upper band lalu bounce
-        pullback = conf.low <= eh and conf.close >= el and bullish
+        # Skenario A: Breakout — close di atas upper band (trend sudah konfirmasi dari detect_trend)
+        breakout = conf.close > eh
+        # Skenario B: Pullback — low menyentuh upper band, close masih dalam/di atas band
+        pullback = conf.low <= eh and conf.close >= el and conf.close > conf.open
 
         if not (breakout or pullback):
-            entry_type = "breakout" if not breakout else "pullback"
             logger.info(
                 f"[NO TRADE][{symbol}] BUY tidak ada setup band {band_str} — "
-                f"breakout={breakout} pullback={pullback} bull={bullish}"
+                f"breakout={breakout} pullback={pullback}"
             )
             return None
 
@@ -202,17 +199,15 @@ def analyze(
         tp = price + sl_dist * rr_target
 
     else:  # SELL
-        bearish = conf.close < conf.open
-
-        # Skenario A: Breakout — candle tembus ke BAWAH lower band (momentum turun)
-        breakout = conf.close < el and bearish
-        # Skenario B: Pullback — harga naik menyentuh upper band lalu rejection
-        pullback = conf.high >= eh and conf.close <= eh and bearish
+        # Skenario A: Breakout — close di bawah lower band (trend sudah konfirmasi dari detect_trend)
+        breakout = conf.close < el
+        # Skenario B: Pullback — high menyentuh upper band, close masih dalam/di bawah band
+        pullback = conf.high >= eh and conf.close <= eh and conf.close < conf.open
 
         if not (breakout or pullback):
             logger.info(
                 f"[NO TRADE][{symbol}] SELL tidak ada setup band {band_str} — "
-                f"breakout={breakout} pullback={pullback} bear={bearish}"
+                f"breakout={breakout} pullback={pullback}"
             )
             return None
 
