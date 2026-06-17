@@ -112,11 +112,13 @@ def notify_close(symbol: str, direction: str, profit: float,
         icon, label = "➖", "BREAKEVEN"
 
     reason_str = f"\nAlasan: <i>{reason}</i>" if reason else ""
+    op = round(open_price) if open_price else 0
+    cp = round(close_price) if close_price else "~"
     send(
         f"{icon} <b>{label} — {symbol}</b>\n"
         f"━━━━━━━━━━━━━━\n"
-        f"📈 Open  : <code>{open_price}</code>\n"
-        f"📉 Close : <code>{close_price}</code>\n"
+        f"📈 Open  : <code>{op}</code>\n"
+        f"📉 Close : <code>{cp}</code>\n"
         f"💵 P&L   : <b>{'+'if profit>0 else ''}{profit:.2f}</b>{reason_str}\n"
         f"⏰ {_now_wib()}"
     )

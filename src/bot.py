@@ -84,14 +84,20 @@ def _detect_closed_positions(symbol: str, current_positions: list[Position]) -> 
             record_win(symbol)
             save_state(_state)
         if pnl_before is not None:
-            # Telegram notify close
+            # Estimasi close_price dari tick terakhir
+            tick_now = _state["ticks"].get(symbol)
+            direction = meta.get("direction", "?")
+            if tick_now:
+                close_price = tick_now.bid if direction == "BUY" else tick_now.ask
+            else:
+                close_price = 0.0
             reason = "TP" if (meta.get("tp") and pnl_before > 0) else "SL" if pnl_before < 0 else "Manual"
             notify_close(
                 symbol=symbol,
-                direction=meta.get("direction", "?"),
+                direction=direction,
                 profit=round(pnl_before, 2),
                 open_price=meta.get("entry", 0),
-                close_price=0,
+                close_price=round(close_price),
                 reason=reason,
             )
             record_trade(
