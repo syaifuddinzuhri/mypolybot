@@ -84,6 +84,11 @@ class Settings(BaseSettings):
     dxy_refresh_seconds: int = 300      # refresh DXY tiap 5 menit
     dxy_trend_threshold: float = 0.15   # selisih DXY vs EMA untuk dianggap "trending"
 
+    # Telegram Notification
+    telegram_enabled: bool = False
+    telegram_token: str = ""
+    telegram_chat_id: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
     @property

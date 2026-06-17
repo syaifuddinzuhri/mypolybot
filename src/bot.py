@@ -14,6 +14,10 @@ from .state_store import save as save_state, load as load_state, restore_cooldow
 from .news_filter import check_macro_ok
 from .performance_tracker import record_trade
 from .config import settings
+from .telegram_notifier import (
+    notify_entry, notify_close, notify_daily_stop,
+    notify_cooldown, notify_startup,
+)
 
 _state: dict = {
     "today_pnl": 0.0,
@@ -60,10 +64,25 @@ def _detect_closed_positions(symbol: str, current_positions: list[Position]) -> 
             record_loss(symbol)
             _state["today_loss_count"] += 1
             save_state(_state)
+            # Telegram notify cooldown jika triggered
+            from .risk import get_cooldown_status
+            cd = get_cooldown_status(symbol)
+            if cd["in_cooldown"]:
+                notify_cooldown(symbol, cd["consecutive_losses"], settings.loss_cooldown_minutes)
         elif pnl_before is not None and pnl_before >= 0:
             record_win(symbol)
             save_state(_state)
         if pnl_before is not None:
+            # Telegram notify close
+            reason = "TP" if (meta.get("tp") and pnl_before > 0) else "SL" if pnl_before < 0 else "Manual"
+            notify_close(
+                symbol=symbol,
+                direction=meta.get("direction", "?"),
+                profit=round(pnl_before, 2),
+                open_price=meta.get("entry", 0),
+                close_price=0,
+                reason=reason,
+            )
             record_trade(
                 symbol=symbol,
                 direction=meta.get("direction", "?"),
@@ -129,6 +148,11 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
         return
 
     if not check_daily_loss(payload.account, _state["today_pnl"]):
+        notify_daily_stop(
+            payload.account.balance,
+            abs(_state["today_pnl"]),
+            settings.daily_loss_percent,
+        )
         return
 
     if not check_cooldown(symbol):
@@ -208,6 +232,23 @@ def process_rates(payload: EARatesPayload, point: float, digits: int, spread: in
     logger.success(
         f"[BOT][{symbol}] #{same_dir_count + 1} {cmd.action} "
         f"lot={cmd.lot} sl={cmd.sl} tp={cmd.tp}"
+    )
+
+    # Telegram — notify entry
+    entry_price = _entry_price
+    sl_pts = int(abs(entry_price - signal.sl) / point) if point else 0
+    tp_pts = int(abs(signal.tp - entry_price) / point) if point else 0
+    entry_type = "breakout" if "breakout" in signal.comment else "pullback"
+    notify_entry(
+        symbol=symbol,
+        direction=signal.direction.value,
+        price=round(entry_price, digits),
+        sl=signal.sl,
+        tp=signal.tp,
+        lot=signal.lot,
+        sl_pts=sl_pts,
+        tp_pts=tp_pts,
+        entry_type=entry_type,
     )
 
 

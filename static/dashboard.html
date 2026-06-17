@@ -649,6 +649,37 @@ tr:hover td{background:#1c2128}
     <button class="cfg-save-btn" onclick="saveConfig('filters')">Simpan Filter</button>
   </div>
 
+  <!-- Telegram -->
+  <div class="card">
+    <div class="card-title"><i class="ti ti-brand-telegram"></i> Telegram Notification</div>
+    <div class="cfg-row">
+      <label>Notifikasi Aktif</label>
+      <div class="cfg-toggle" id="cfg-telegram_enabled" onclick="toggleCfg('telegram_enabled')"></div>
+    </div>
+    <div class="cfg-row">
+      <label>Bot Token</label>
+      <input type="text" id="cfg-telegram_token" placeholder="123456:ABC-xxx" style="width:180px;text-align:left;font-size:11px">
+    </div>
+    <div class="cfg-row">
+      <label>Chat ID</label>
+      <input type="text" id="cfg-telegram_chat_id" placeholder="-100xxxxxxx" style="width:140px;text-align:left">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="cfg-save-btn" style="flex:1" onclick="saveConfig('telegram')">Simpan</button>
+      <button onclick="testTelegram()" style="flex:1;padding:9px;background:var(--border2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">📨 Test Kirim</button>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.8;background:var(--bg);padding:10px;border-radius:8px">
+      <b style="color:var(--text)">Cara mendapatkan token:</b><br>
+      1. Buka @BotFather di Telegram<br>
+      2. Ketik <code>/newbot</code> → ikuti instruksi<br>
+      3. Copy token yang diberikan<br><br>
+      <b style="color:var(--text)">Cara mendapatkan Chat ID:</b><br>
+      1. Kirim pesan ke bot kamu<br>
+      2. Buka: <code>api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code><br>
+      3. Ambil nilai <code>chat.id</code>
+    </div>
+  </div>
+
   <div id="cfg-toast" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--green);color:#000;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;z-index:999"></div>
 </div>
 
@@ -1666,6 +1697,22 @@ function cfgGet(id) {
   return el.value;
 }
 
+async function testTelegram() {
+  const toast = document.getElementById('cfg-toast');
+  toast.textContent = '📨 Mengirim pesan test...';
+  toast.style.background = 'var(--blue)';
+  toast.style.display = 'block';
+  const res = await fetch('/telegram/test').then(r => r.json()).catch(() => null);
+  if (res && res.ok) {
+    toast.textContent = '✅ Pesan test berhasil dikirim!';
+    toast.style.background = 'var(--green)';
+  } else {
+    toast.textContent = '❌ ' + (res?.reason || 'Gagal — cek token & chat ID');
+    toast.style.background = 'var(--red)';
+  }
+  setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
 function toggleCfg(key) {
   const el = document.getElementById('cfg-' + key);
   const cur = el.dataset.val === 'true';
@@ -1698,6 +1745,11 @@ async function loadConfig() {
   cfgSet('eod_minute', cfg.eod_minute);
   cfgSet('news_filter_enabled', cfg.news_filter_enabled);
   cfgSet('dxy_filter_enabled', cfg.dxy_filter_enabled);
+  cfgSet('telegram_enabled', cfg.telegram_enabled);
+  const tokEl = document.getElementById('cfg-telegram_token');
+  const cidEl = document.getElementById('cfg-telegram_chat_id');
+  if (tokEl) tokEl.value = cfg.telegram_token || '';
+  if (cidEl) cidEl.value = cfg.telegram_chat_id || '';
 }
 
 const CFG_GROUPS = {
@@ -1708,6 +1760,7 @@ const CFG_GROUPS = {
   partial:  ['partial_close_enabled','partial_close_trigger_points'],
   eod:      ['eod_close_enabled','eod_hour','eod_minute'],
   filters:  ['news_filter_enabled','dxy_filter_enabled'],
+  telegram: ['telegram_enabled','telegram_token','telegram_chat_id'],
 };
 
 async function saveConfig(group) {

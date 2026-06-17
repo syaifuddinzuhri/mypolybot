@@ -202,6 +202,9 @@ async def get_config():
         "max_positions_per_symbol": settings.max_positions_per_symbol,
         "news_filter_enabled": settings.news_filter_enabled,
         "dxy_filter_enabled": settings.dxy_filter_enabled,
+        "telegram_enabled": settings.telegram_enabled,
+        "telegram_token": settings.telegram_token,
+        "telegram_chat_id": settings.telegram_chat_id,
     }
 
 
@@ -233,6 +236,9 @@ async def patch_config(updates: dict):
         "news_filter_enabled": bool,
         "dxy_filter_enabled": bool,
         "max_positions_per_symbol": int,
+        "telegram_enabled": bool,
+        "telegram_token": str,
+        "telegram_chat_id": str,
     }
 
     applied = {}
@@ -419,6 +425,18 @@ async def ea_bars(symbol: str = None, limit: int = 100):
         "price":   price,
         "spread":  spread,
     }
+
+
+@app.get("/telegram/test")
+async def telegram_test():
+    """Test kirim pesan ke Telegram."""
+    from .telegram_notifier import notify_test
+    if not settings.telegram_enabled:
+        return {"ok": False, "reason": "TELEGRAM_ENABLED=false"}
+    if not settings.telegram_token or not settings.telegram_chat_id:
+        return {"ok": False, "reason": "Token atau Chat ID belum diset"}
+    notify_test()
+    return {"ok": True, "message": "Pesan test dikirim ke Telegram"}
 
 
 @app.get("/logs/recent")
