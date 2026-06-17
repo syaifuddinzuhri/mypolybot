@@ -72,14 +72,14 @@ def notify_entry(symbol: str, direction: str, price: float, sl: float,
                  tp: float, lot: float, sl_pts: int, tp_pts: int,
                  entry_type: str = "",
                  tp1: float = 0.0, tp2: float = 0.0,
-                 price_high: float = 0.0, point: float = 0.001):
+                 price_bid: float = 0.0, price_ask: float = 0.0,
+                 point: float = 0.001):
     dir_label = "Buy Now" if direction == "BUY" else "Sell Now"
     icon = "🟢" if direction == "BUY" else "🔴"
-    p_lo = min(price, price_high) if price_high else price
-    p_hi = max(price, price_high) if price_high else price
     fmt = lambda v: str(round(v))
-    r = lambda v: str(round(v))
-    entry_str = f"@{r(p_lo)}-{r(p_hi)}" if price_high else f"@{r(price)}"
+    # Range = bid–ask, tampilkan hanya jika berbeda setelah dibulatkan
+    lo, hi = round(price_bid), round(price_ask)
+    entry_str = f"@{lo}-{hi}" if (price_bid and price_ask and lo != hi) else f"@{round(price)}"
     tag = f" <i>({entry_type})</i>" if entry_type else ""
 
     tp1_pts = int(abs(tp1 - price) / point) if (tp1 and point) else 0
@@ -112,14 +112,14 @@ def notify_close(symbol: str, direction: str, profit: float,
         icon, label = "➖", "BREAKEVEN"
 
     reason_str = f"\nAlasan: <i>{reason}</i>" if reason else ""
-    op = round(open_price) if open_price else 0
-    cp = round(close_price) if close_price else "~"
+    op = round(open_price) if open_price else "?"
+    cp = f"~{round(close_price)}" if close_price else "?"
     send(
         f"{icon} <b>{label} — {symbol}</b>\n"
         f"━━━━━━━━━━━━━━\n"
         f"📈 Open  : <code>{op}</code>\n"
-        f"📉 Close : <code>{cp}</code>\n"
-        f"💵 P&L   : <b>{'+'if profit>0 else ''}{profit:.2f}</b>{reason_str}\n"
+        f"📉 Close : <code>{cp}</code>  <i>(estimasi)</i>\n"
+        f"💵 P&L   : <b>{'+'if profit>0 else ''}{profit:.2f}</b>  <i>(IDR, cek MT5)</i>{reason_str}\n"
         f"⏰ {_now_wib()}"
     )
 
