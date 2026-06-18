@@ -175,8 +175,8 @@ def analyze(
     # ── Filter 1: ATR ──────────────────────────────────────────────────────
     # Skip jika market terlalu flat (ATR < 1.0) atau terlalu volatile (ATR > 8.0)
     atr = _atr(bars)
-    atr_min = 1.0   # gold perlu bergerak minimal $1 per 15 menit
-    atr_max = 8.0   # di atas $8 terlalu chaotic untuk entry aman
+    atr_min = settings.atr_min
+    atr_max = settings.atr_max
     if atr < atr_min or atr > atr_max:
         logger.info(
             f"[NO TRADE][{symbol}] ATR filter — ATR={atr:.3f} "

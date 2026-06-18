@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     sl_atr_multiplier: float = 2.0   # buffer = ATR × multiplier
     sl_min_points: int = 4000        # minimum buffer dalam points (×point = nilai $)
     sl_max_points: int = 3000        # maksimum buffer — cegah TP terlalu jauh saat ATR spike
+    atr_min: float = 1.0             # skip jika market terlalu flat
+    atr_max: float = 15.0            # skip jika market terlalu volatile
 
     # Multi-TP SL Management
     multi_tp_enabled: bool = True
