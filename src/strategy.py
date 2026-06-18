@@ -172,25 +172,60 @@ def analyze(
     price      = tick.ask if direction == Direction.BUY else tick.bid
     rr_target  = settings.min_rr_ratio
 
-    # ── Filter 0: M5 Trend Confirmation ───────────────────────────────────
-    # M15 menentukan arah besar, M5 konfirmasi momentum sekarang
+    # ── Filter 0a: EMA Slope M15 ───────────────────────────────────────────
+    # EMA band harus bergerak searah trend — cegah entry saat EMA lagging setelah spike
+    slope_lookback = 5
+    if len(ema_high) >= slope_lookback + 2:
+        if direction == Direction.BUY:
+            ema_rising = ema_high[-2] > ema_high[-(slope_lookback + 2)]
+            if not ema_rising:
+                logger.info(
+                    f"[NO TRADE][{symbol}] EMA slope turun — BUY diabaikan "
+                    f"(EMA_high {ema_high[-(slope_lookback+2)]:.3f} → {ema_high[-2]:.3f})"
+                )
+                return None
+        else:
+            ema_falling = ema_low[-2] < ema_low[-(slope_lookback + 2)]
+            if not ema_falling:
+                logger.info(
+                    f"[NO TRADE][{symbol}] EMA slope naik — SELL diabaikan "
+                    f"(EMA_low {ema_low[-(slope_lookback+2)]:.3f} → {ema_low[-2]:.3f})"
+                )
+                return None
+
+    # ── Filter 0b: M5 Momentum (3 candle terakhir searah) ─────────────────
+    # Minimal 2 dari 3 candle M5 terakhir harus searah trend
     if has_m5:
         m5_ema_high, m5_ema_low = _ema_band(bars_entry, period)
-        m5_eh = m5_ema_high[-2]
-        m5_el = m5_ema_low[-2]
-        m5_close = bars_entry[-2].close
-        if direction == Direction.BUY and m5_close < m5_el:
+        m5_buy = sum(
+            1 for i in range(1, 4)
+            if bars_entry[-i].close > m5_ema_high[-i]
+        )
+        m5_sell = sum(
+            1 for i in range(1, 4)
+            if bars_entry[-i].close < m5_ema_low[-i]
+        )
+        if direction == Direction.BUY and m5_buy < 2:
             logger.info(
-                f"[NO TRADE][{symbol}] M5 counter-trend — M15=BUY tapi M5 close={m5_close:.3f} "
-                f"< EMA_low={m5_el:.3f}"
+                f"[NO TRADE][{symbol}] M5 momentum lemah — BUY hanya {m5_buy}/3 candle bullish"
             )
             return None
-        if direction == Direction.SELL and m5_close > m5_eh:
+        if direction == Direction.SELL and m5_sell < 2:
             logger.info(
-                f"[NO TRADE][{symbol}] M5 counter-trend — M15=SELL tapi M5 close={m5_close:.3f} "
-                f"> EMA_high={m5_eh:.3f}"
+                f"[NO TRADE][{symbol}] M5 momentum lemah — SELL hanya {m5_sell}/3 candle bearish"
             )
             return None
+
+    # ── Filter 0c: ATR Spike (post-event cooldown) ─────────────────────────
+    # Jika ATR sekarang > 2x ATR rata-rata historis, market tidak normal
+    atr_recent = _atr(bars, period=14)
+    atr_hist   = _atr(bars[:-14], period=14) if len(bars) > 28 else atr_recent
+    if atr_hist > 0 and atr_recent > atr_hist * 2.0:
+        logger.info(
+            f"[NO TRADE][{symbol}] ATR spike — ATR={atr_recent:.3f} > 2x hist={atr_hist:.3f} "
+            f"(kemungkinan pasca event besar)"
+        )
+        return None
 
     # ── Filter 1: ATR ──────────────────────────────────────────────────────
     # Skip jika market terlalu flat (ATR < 1.0) atau terlalu volatile (ATR > 8.0)
