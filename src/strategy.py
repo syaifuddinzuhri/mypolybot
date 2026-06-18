@@ -172,6 +172,26 @@ def analyze(
     price      = tick.ask if direction == Direction.BUY else tick.bid
     rr_target  = settings.min_rr_ratio
 
+    # ── Filter 0: M5 Trend Confirmation ───────────────────────────────────
+    # M15 menentukan arah besar, M5 konfirmasi momentum sekarang
+    if has_m5:
+        m5_ema_high, m5_ema_low = _ema_band(bars_entry, period)
+        m5_eh = m5_ema_high[-2]
+        m5_el = m5_ema_low[-2]
+        m5_close = bars_entry[-2].close
+        if direction == Direction.BUY and m5_close < m5_el:
+            logger.info(
+                f"[NO TRADE][{symbol}] M5 counter-trend — M15=BUY tapi M5 close={m5_close:.3f} "
+                f"< EMA_low={m5_el:.3f}"
+            )
+            return None
+        if direction == Direction.SELL and m5_close > m5_eh:
+            logger.info(
+                f"[NO TRADE][{symbol}] M5 counter-trend — M15=SELL tapi M5 close={m5_close:.3f} "
+                f"> EMA_high={m5_eh:.3f}"
+            )
+            return None
+
     # ── Filter 1: ATR ──────────────────────────────────────────────────────
     # Skip jika market terlalu flat (ATR < 1.0) atau terlalu volatile (ATR > 8.0)
     atr = _atr(bars)
@@ -239,6 +259,10 @@ def analyze(
         if sl_dist <= 0:
             logger.info(f"[NO TRADE][{symbol}] BUY SL invalid")
             return None
+        max_sl_dist = settings.sl_max_points * point
+        if sl_dist > max_sl_dist:
+            sl      = round(price - max_sl_dist, digits)
+            sl_dist = max_sl_dist
 
         tp1 = round(price + sl_dist * settings.tp1_rr, digits)
         tp2 = round(price + sl_dist * settings.tp2_rr, digits)
@@ -276,6 +300,10 @@ def analyze(
         if sl_dist <= 0:
             logger.info(f"[NO TRADE][{symbol}] SELL SL invalid")
             return None
+        max_sl_dist = settings.sl_max_points * point
+        if sl_dist > max_sl_dist:
+            sl      = round(price + max_sl_dist, digits)
+            sl_dist = max_sl_dist
 
         tp1 = round(price - sl_dist * settings.tp1_rr, digits)
         tp2 = round(price - sl_dist * settings.tp2_rr, digits)
